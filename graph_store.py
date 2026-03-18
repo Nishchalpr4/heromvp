@@ -198,8 +198,10 @@ class GraphStore:
                 source_authority=source_authority
             )
             
-            # Update local index
+            # Update local index with canonical name AND all aliases
             self._alias_index[self._normalize_name(candidate.canonical_name)] = master_id
+            for alias in candidate.aliases:
+                self._alias_index[self._normalize_name(alias)] = master_id
 
         # 3. Process Relations
         for rel in payload.relations:
@@ -209,7 +211,7 @@ class GraphStore:
             if not src_master or not tgt_master:
                 continue
                 
-            rel_id = f"rel_{_slugify(src_master)}_{_slugify(tgt_master)}_{uuid.uuid4().hex[:4]}"
+            rel_id = make_relation_id(src_master, rel.relation_type, tgt_master)
             self.db.add_relation(rel_id, src_master, tgt_master, rel.relation_type)
             new_relation_ids.add(rel_id)
             

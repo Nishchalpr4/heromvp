@@ -217,7 +217,7 @@ class EvidenceRef(BaseModel):
 
 class EntityCandidate(BaseModel):
     temp_id: str
-    entity_type: str 
+    entity_type: EntityType 
     canonical_name: str
     aliases: list[str] = Field(default_factory=list)
     attributes: dict[str, Any] = Field(default_factory=dict)
@@ -229,7 +229,7 @@ class EntityCandidate(BaseModel):
 class RelationCandidate(BaseModel):
     source_temp_id: str
     target_temp_id: str
-    relation_type: str
+    relation_type: RelationType
     attributes: dict[str, Any] = Field(default_factory=dict)
     evidence: list[EvidenceRef] = Field(default_factory=list)
     confidence: float = 1.0

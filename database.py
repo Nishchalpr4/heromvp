@@ -41,6 +41,12 @@ class DatabaseManager:
             conn.row_factory = sqlite3.Row
             return conn
 
+    def _get_cursor(self, conn):
+        """Helper to get the right cursor factory for Postgres/SQLite."""
+        if self.is_postgres:
+            return conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
+        return conn.cursor()
+
     def _init_db(self):
         """Initializes the schema for the Investment Intelligence System."""
         conn = self._get_connection()
@@ -173,10 +179,7 @@ class DatabaseManager:
     def get_ontology(self):
         conn = self._get_connection()
         try:
-            if self.is_postgres:
-                cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-            else:
-                cursor = conn.cursor()
+            cursor = self._get_cursor(conn)
             
             cursor.execute("SELECT key, data FROM ontology_rules")
             rows = cursor.fetchall()
@@ -187,7 +190,7 @@ class DatabaseManager:
     def update_ontology(self, key: str, data: list | dict):
         conn = self._get_connection()
         try:
-            cursor = conn.cursor()
+            cursor = self._get_cursor(conn)
             if self.is_postgres:
                 cursor.execute("""
                     INSERT INTO ontology_rules (key, data, last_updated)
@@ -206,7 +209,7 @@ class DatabaseManager:
     def upsert_entity(self, entity_id: str, name: str, entity_type: str, color: str = None, attributes: dict = None, aliases: list = None):
         conn = self._get_connection()
         try:
-            cursor = conn.cursor()
+            cursor = self._get_cursor(conn)
             if self.is_postgres:
                 cursor.execute("""
                     INSERT INTO entity_master (id, name, type, color, attributes, aliases, updated_at)
@@ -238,7 +241,7 @@ class DatabaseManager:
     def add_relation(self, rel_id: str, source_id: str, target_id: str, relation: str):
         conn = self._get_connection()
         try:
-            cursor = conn.cursor()
+            cursor = self._get_cursor(conn)
             if self.is_postgres:
                 cursor.execute("""
                     INSERT INTO relation_master (id, source_id, target_id, relation)
@@ -257,7 +260,8 @@ class DatabaseManager:
     def add_assertion(self, subject_id: str, subject_type: str, source_text: str, confidence: float, document_name: str, section_ref: str, status: str = 'PENDING', source_authority: int = 5):
         conn = self._get_connection()
         try:
-            cursor = conn.cursor()
+            cursor = self._get_cursor(conn)
+                
             if self.is_postgres:
                 cursor.execute("""
                     INSERT INTO assertions (subject_id, subject_type, source_text, confidence, status, document_name, section_ref, source_authority)
@@ -280,7 +284,7 @@ class DatabaseManager:
     def add_quant_metric(self, entity_id: str, metric: str, value: float, unit: str, period: str, assertion_id: int = None):
         conn = self._get_connection()
         try:
-            cursor = conn.cursor()
+            cursor = self._get_cursor(conn)
             if self.is_postgres:
                 cursor.execute("""
                     INSERT INTO quant_data (entity_id, metric, value, unit, period, source_assertion_id)
@@ -298,10 +302,7 @@ class DatabaseManager:
     def get_graph_data(self):
         conn = self._get_connection()
         try:
-            if self.is_postgres:
-                cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-            else:
-                cursor = conn.cursor()
+            cursor = self._get_cursor(conn)
             
             cursor.execute("SELECT id, name as label, type, color, attributes, aliases FROM entity_master")
             nodes = []

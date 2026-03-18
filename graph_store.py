@@ -112,7 +112,7 @@ class GraphStore:
         with self.db._get_connection() as conn:
             if self.db.is_postgres:
                 import psycopg2.extras
-                cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+                cursor = conn.cursor(cursor_factory=psycopg2.extras.DictCursor)
             else:
                 cursor = conn.cursor()
             cursor.execute("SELECT id, name, aliases FROM entity_master")

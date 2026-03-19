@@ -273,14 +273,14 @@ class GraphVisualization {
             .attr("x", -110)
             .attr("y", -35)
             .attr("rx", 2)
-            .attr("fill", d => d.color);
+            .attr("fill", d => d.color || "#3b82f6");
 
         // Icon bg - larger
         enter.append("circle")
             .attr("cx", -75)
             .attr("cy", 0)
             .attr("r", 16)
-            .attr("fill", d => d.color)
+            .attr("fill", d => d.color || "#3b82f6")
             .attr("opacity", 0.2);
 
         // Icon text - larger
@@ -288,7 +288,7 @@ class GraphVisualization {
             .attr("x", -75)
             .attr("y", 6)
             .attr("text-anchor", "middle")
-            .attr("fill", d => d.color)
+            .attr("fill", d => d.color || "#3b82f6")
             .attr("font-size", "14px")
             .attr("font-weight", "700")
             .attr("pointer-events", "none")
@@ -298,7 +298,7 @@ class GraphVisualization {
         enter.append("text")
             .attr("x", -35)
             .attr("y", -8)
-            .attr("fill", d => d.color)
+            .attr("fill", d => d.color || "#3b82f6")
             .attr("font-size", "11px")
             .attr("font-weight", "700")
             .attr("letter-spacing", "0.08em")
@@ -534,7 +534,8 @@ class GraphVisualization {
     // ── Tooltip ─────────────────────────────────────────────────
 
     _showTooltip(event, d) {
-        let html = `<div class="tt-type" style="color:${d.color}">${this._formatType(d.type)}</div>`;
+        const color = d.color || "#3b82f6";
+        let html = `<div class="tt-type" style="color:${color}">${this._formatType(d.type)}</div>`;
         html += `<div class="tt-name">${d.label}</div>`;
 
         if (d.aliases && d.aliases.length > 0) {
@@ -587,13 +588,14 @@ class GraphVisualization {
 
         let html = ``;
         if (itemType === "node") {
+            const color = d.color || "#3b82f6";
             // Get latest status/confidence from evidence
             const latestEv = d.evidence && d.evidence.length > 0 ? d.evidence[0] : null;
             const status = latestEv ? latestEv.status : 'PENDING';
 
             html += `
                 <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
-                    <div class="detail-type-badge" style="color:${d.color}; border-color:${d.color}">${this._formatType(d.type)}</div>
+                    <div class="detail-type-badge" style="color:${color}; border-color:${color}">${this._formatType(d.type)}</div>
                     <div class="status-indicator status-${status}">
                         <div class="status-dot"></div>
                         <span>${status}</span>
@@ -673,9 +675,9 @@ class GraphVisualization {
             const src = this.nodes.find(n => n.id === (typeof d.source === "object" ? d.source.id : d.source));
             const tgt = this.nodes.find(n => n.id === (typeof d.target === "object" ? d.target.id : d.target));
             html += `<div class="detail-flow">
-                <span class="flow-entity" style="color:${src ? src.color : '#fff'}">${src ? src.label : "?"}</span>
+                <span class="flow-entity" style="color:${src ? (src.color || '#3b82f6') : '#fff'}">${src ? src.label : "?"}</span>
                 <span class="flow-arrow">→</span>
-                <span class="flow-entity" style="color:${tgt ? tgt.color : '#fff'}">${tgt ? tgt.label : "?"}</span>
+                <span class="flow-entity" style="color:${tgt ? (tgt.color || '#3b82f6') : '#fff'}">${tgt ? tgt.label : "?"}</span>
             </div>`;
         }
 

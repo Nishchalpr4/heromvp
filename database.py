@@ -133,6 +133,12 @@ class DatabaseManager:
 
             conn.commit()
             logger.info("Neon Postgres Database initialized successfully.")
+
+            # Auto-seed if empty
+            cursor.execute("SELECT count(*) FROM ontology_rules")
+            if cursor.fetchone()[0] == 0:
+                logger.info("Ontology is empty. Auto-seeding from base_ontology.json...")
+                self.seed_ontology()
         finally:
             conn.close()
 

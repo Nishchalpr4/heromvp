@@ -111,7 +111,7 @@ class GraphStore:
             
             # Fetch color from ontology
             ont_colors = self.ontology.get('entity_colors', {})
-            ent_color = ont_colors.get(entity.entity_type)
+            ent_color = ont_colors.get(entity.entity_type, "#3b82f6") # Default fallback blue
 
             self.db.upsert_entity(
                 entity_id=can_id,

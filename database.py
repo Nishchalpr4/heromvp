@@ -357,27 +357,23 @@ class DatabaseManager:
             conn.close()
 
     def seed_ontology(self):
-        from models import EntityType, RelationType, ALLOWED_RELATION_TRIPLES, ENTITY_TYPE_COLORS
+        """Seeds the initial ontology rules from base_ontology.json if NOT already present."""
+        import json
+        from pathlib import Path
         
-        entity_types = [e.value for e in EntityType]
-        self.update_ontology("entity_types", entity_types)
+        # Load from base_ontology.json
+        config_path = Path(__file__).parent / "base_ontology.json"
+        if not config_path.exists():
+            logger.warning("base_ontology.json not found. Skipping initial seed.")
+            return
+
+        with open(config_path, "r") as f:
+            data = json.load(f)
+            
+        self.update_ontology("entity_types", data.get("entity_types", []))
+        self.update_ontology("relation_types", data.get("relation_types", []))
+        self.update_ontology("allowed_triples", data.get("allowed_triples", []))
+        self.update_ontology("entity_colors", data.get("entity_colors", {}))
+        self.update_ontology("extraction_rules", data.get("extraction_rules", []))
         
-        relation_types = [r.value for r in RelationType]
-        self.update_ontology("relation_types", relation_types)
-        
-        allowed_triples = [{"source": s.value, "relation": r.value, "target": t.value} for s, r, t in ALLOWED_RELATION_TRIPLES]
-        self.update_ontology("allowed_triples", allowed_triples)
-        
-        self.update_ontology("entity_colors", ENTITY_TYPE_COLORS)
-        
-        rules = [
-            "ROOT ENTITY: identify the primary company as LegalEntity (ROOT).",
-            "NO ORPHANS: Every node must connect to ROOT directly or indirectly.",
-            "MANAGEMENT CHAIN: LegalEntity -> HAS_MANAGEMENT -> Management -> HAS_ROLE -> Role -> HELD_BY -> Person.",
-            "SUCCESSION: If one Person replaces another, use [Person A] -> SUCCEEDS -> [Person B].",
-            "GEOGRAPHY: Region -> Country -> Site hierarchy.",
-            "QUANT DATA: DO NOT create nodes for Revenue, PAT, Assets, etc. These MUST only be in 'quant_data'.",
-            "BUSINESS UNITS: Key divisions (e.g. Wealth Management) are BusinessUnit nodes."
-        ]
-        self.update_ontology("extraction_rules", rules)
-        logger.info("Database ontology seeded successfully.")
+        logger.info("Database ontology seeded successfully from base_ontology.json.")

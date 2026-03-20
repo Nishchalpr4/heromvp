@@ -54,9 +54,8 @@
     <main id="app-main">
         <!-- LEFT PANEL: Input -->
         <aside id="input-panel">
-            <nav class="panel-tabs">
+            <nav class="panel-tabs" style="display: none;">
                 <button class="tab-btn active" data-tab="extract">Quick Extract</button>
-                <button class="tab-btn" data-tab="ingest">Ingestion Pipeline</button>
             </nav>
 
             <!-- TAB: Quick Extract -->
@@ -131,69 +130,6 @@
                 </div>
             </div>
 
-            <!-- TAB: Ingestion Pipeline -->
-            <div id="tab-ingest" class="tab-content">
-                <div class="panel-header">
-                    <h2>Document Ingestion</h2>
-                </div>
-
-                <div class="ingestion-workflow">
-                    <div class="workflow-step">
-                        <label>1. Select/Upload PDF</label>
-                        <div class="file-upload-zone" id="file-drop-zone">
-                            <input type="file" id="pdf-upload" accept=".pdf" style="display:none;">
-                            <div class="upload-placeholder">
-                                <span>Drop PDF or click to browse</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div id="metadata-config" style="display:none;">
-                        <div class="workflow-step">
-                            <label>2. Configure Metadata</label>
-                            <div class="input-grid">
-                                <div class="input-group">
-                                    <label>Company</label>
-                                    <input type="text" id="meta-company" placeholder="e.g. Nike Inc.">
-                                </div>
-                                <div class="input-group">
-                                    <label>Ticker</label>
-                                    <input type="text" id="meta-ticker" placeholder="e.g. NKE">
-                                </div>
-                                <div class="input-group">
-                                    <label>Year</label>
-                                    <input type="number" id="meta-year" value="2024">
-                                </div>
-                                <div class="input-group">
-                                    <label>Period</label>
-                                    <select id="meta-period">
-                                        <option>Annual</option>
-                                        <option>Q1</option>
-                                        <option>Q2</option>
-                                        <option>Q3</option>
-                                    </select>
-                                </div>
-                            </div>
-                        </div>
-
-                        <button id="btn-process-doc" class="btn-primary">
-                            <span class="btn-text">Process & Generate Golden Chunks</span>
-                            <span class="btn-loading" style="display:none;">Extracting...</span>
-                        </button>
-                    </div>
-
-                    <div id="ingestion-status" class="status-box" style="display:none;">
-                        <div class="progress-bar">
-                            <div class="progress-fill"></div>
-                        </div>
-                        <span id="ingestion-status-text">Processing...</span>
-                    </div>
-
-                    <div id="golden-chunks-list" class="chunks-list">
-                        <!-- Chunks will appear here -->
-                    </div>
-                </div>
-            </div>
         </aside>
 
         <!-- RIGHT: Graph Visualization -->
@@ -237,8 +173,8 @@
         <span id="llm-info"></span>
     </footer>
 
-    <script src="/static/graph.js?v=2"></script>
-    <script src="/static/app.js?v=3"></script>
+    <script src="/static/graph.js"></script>
+    <script src="/static/app.js"></script>
 </body>
 
 </html>

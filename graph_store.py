@@ -233,11 +233,12 @@ class GraphStore:
         return data
 
     def reset(self):
-        """Wipes and re-initializes the database."""
-        self.db.drop_all_tables()
-        self.db._init_db()
-        self.db.seed_ontology()
+        """Wipes graph data while PRESERVING ontology and learned discoveries."""
+        self.db.clear_graph_data()
+        self.db._init_db()  # Re-create the dropped graph tables
+        self.db.seed_ontology(merge_with_existing=True) 
         self.ontology = self.db.get_ontology()
+        self.guard = LogicGuard(self.ontology)
         self._alias_index = {}
         self._refresh_alias_index()
 

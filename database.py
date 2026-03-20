@@ -142,8 +142,22 @@ class DatabaseManager:
         finally:
             conn.close()
 
-    def drop_all_tables(self):
-        """Wipes the database schema (DANGER)."""
+    def clear_graph_data(self):
+        """Clears actual graph data (nodes, links, evidence) but PRESERVES knowledge (ontology, discoveries)."""
+        conn = self._get_connection()
+        try:
+            cursor = conn.cursor()
+            cursor.execute("DROP TABLE IF EXISTS entity_master CASCADE")
+            cursor.execute("DROP TABLE IF EXISTS relation_master CASCADE")
+            cursor.execute("DROP TABLE IF EXISTS assertions CASCADE")
+            cursor.execute("DROP TABLE IF EXISTS quant_data CASCADE")
+            conn.commit()
+            logger.warning("Graph data tables cleared. (Ontology and Discoveries preserved)")
+        finally:
+            conn.close()
+
+    def danger_full_wipe(self):
+        """Wipes EVERY table including learned knowledge (DANGER)."""
         conn = self._get_connection()
         try:
             cursor = conn.cursor()
@@ -155,7 +169,7 @@ class DatabaseManager:
             cursor.execute("DROP TABLE IF EXISTS new_entity_types CASCADE")
             cursor.execute("DROP TABLE IF EXISTS new_relation_types CASCADE")
             conn.commit()
-            logger.warning("All Neon Postgres tables dropped.")
+            logger.warning("All Neon Postgres tables dropped (FULL WIPE).")
         finally:
             conn.close()
 
@@ -170,16 +184,30 @@ class DatabaseManager:
         finally:
             conn.close()
 
-    def update_ontology(self, key: str, data: list | dict):
-        """Upserts ontology rules into Neon."""
+    def update_ontology(self, key: str, data: list | dict, merge: bool = False):
+        """Upserts ontology rules into Neon. If merge=True, appends to existing list."""
         conn = self._get_connection()
         try:
             cursor = self._get_cursor(conn)
+            
+            final_data = data
+            if merge:
+                cursor.execute("SELECT data FROM ontology_rules WHERE key = %s", (key,))
+                row = cursor.fetchone()
+                if row:
+                    current_data = json.loads(row['data'])
+                    if isinstance(current_data, list) and isinstance(data, list):
+                        # Merge lists, unique entries only
+                        final_data = list(set(current_data + data))
+                    elif isinstance(current_data, dict) and isinstance(data, dict):
+                        # Merge dicts
+                        final_data = {**current_data, **data}
+
             cursor.execute("""
                 INSERT INTO ontology_rules (key, data, last_updated)
                 VALUES (%s, %s, CURRENT_TIMESTAMP)
                 ON CONFLICT (key) DO UPDATE SET data = EXCLUDED.data, last_updated = CURRENT_TIMESTAMP
-            """, (key, json.dumps(data)))
+            """, (key, json.dumps(final_data)))
             conn.commit()
         finally:
             conn.close()
@@ -324,8 +352,10 @@ class DatabaseManager:
         finally:
             conn.close()
 
-    def seed_ontology(self):
-        """Centralized seeder: Reads base_ontology.json and writes to Neon."""
+    def seed_ontology(self, merge_with_existing: bool = True):
+        """Centralized seeder: Reads base_ontology.json and writes to Neon.
+        By default, it MERGES with existing rules so learned types aren't lost.
+        """
         config_path = Path(__file__).parent / "base_ontology.json"
         if not config_path.exists():
             logger.warning("base_ontology.json not found. Skipping initial seed.")
@@ -334,10 +364,10 @@ class DatabaseManager:
         with open(config_path, "r") as f:
             data = json.load(f)
             
-        self.update_ontology("entity_types", data.get("entity_types", []))
-        self.update_ontology("relation_types", data.get("relation_types", []))
-        self.update_ontology("allowed_triples", data.get("allowed_triples", []))
-        self.update_ontology("entity_colors", data.get("entity_colors", {}))
-        self.update_ontology("extraction_rules", data.get("extraction_rules", []))
+        self.update_ontology("entity_types", data.get("entity_types", []), merge=merge_with_existing)
+        self.update_ontology("relation_types", data.get("relation_types", []), merge=merge_with_existing)
+        self.update_ontology("allowed_triples", data.get("allowed_triples", []), merge=merge_with_existing)
+        self.update_ontology("entity_colors", data.get("entity_colors", {}), merge=merge_with_existing)
+        self.update_ontology("extraction_rules", data.get("extraction_rules", []), merge=merge_with_existing)
         
-        logger.info("Neon Postgres ontology seeded successfully from base_ontology.json.")
+        logger.info(f"Neon Postgres ontology {'merged' if merge_with_existing else 'seeded'} from base_ontology.json.")

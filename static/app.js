@@ -59,6 +59,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Sharing logic
     initSharing();
+
+    // Initial data fetch
+    fetchGraph();
 });
 
 // ── Sharing Logic ───────────────────────────────────────────────
@@ -102,6 +105,21 @@ function renderLegend() {
         </div>`;
     }
     legendEl.innerHTML = html;
+}
+
+// ── Fetch Initial Data ────────────────────────────────────────────────
+async function fetchGraph() {
+    try {
+        const res = await fetch("/api/graph");
+        const data = await res.json();
+        if (data && data.nodes) {
+            graph.update(data);
+            document.getElementById("entity-count").textContent = data.stats.total_entities;
+            document.getElementById("relation-count").textContent = data.stats.total_relations;
+        }
+    } catch (e) {
+        console.error("Initial fetch failed:", e);
+    }
 }
 
 // ── Health Check ───────────────────────────────────────────────────

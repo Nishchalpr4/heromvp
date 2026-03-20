@@ -13,6 +13,7 @@ __pycache__/
 # Output files
 *.json
 !package.json
+!base_ontology.json
 
 # Logs
 tunnel_log.txt

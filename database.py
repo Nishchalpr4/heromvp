@@ -33,8 +33,6 @@ class DatabaseManager:
         if not self.db_url.startswith("postgres"):
             raise ValueError("DATABASE_URL must be a valid PostgreSQL connection string starting with 'postgres://'.")
 
-        self._init_db()
-
         # ── CONNECTION POOLING (Critical for Render/Neon Free Tier) ──
         # SimpleConnectionPool reuses existing connections to avoid hitting limits.
         try:
@@ -48,6 +46,8 @@ class DatabaseManager:
         except Exception as e:
             logger.error(f"Failed to initialize Connection Pool: {e}")
             raise
+
+        self._init_db()
 
     def _get_connection(self):
         """Retrieves a connection from the pool."""

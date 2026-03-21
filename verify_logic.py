@@ -11,14 +11,24 @@ async def verify():
     has_market = any(e.entity_type == "Market" for e in res.entities)
     has_product_portfolio = any(e.entity_type == "ProductPortfolio" for e in res.entities)
     
-    print(f"Entities: {len(res.entities)}")
-    print(f"Relations: {len(res.relations)}")
-    print(f"Missing Context Attributes: {len(missing_context)}")
-    if missing_context:
-        print(f"Examples: {missing_context[:3]}")
-    print(f"Has Management Node: {has_management}")
-    print(f"Has Market Node: {has_market}")
-    print(f"Has ProductPortfolio Node: {has_product_portfolio}")
+    with open("verify_result.txt", "w") as f:
+        f.write(f"Entities Found ({len(res.entities)}):\n")
+        for e in res.entities:
+            f.write(f" - [{e.entity_type}] {e.canonical_name} ({e.temp_id})\n")
+            
+        f.write("\nRelations Found:\n")
+        id_map = {e.temp_id: e.canonical_name for e in res.entities}
+        for r in res.relations:
+            src = id_map.get(r.source_temp_id, r.source_temp_id)
+            tgt = id_map.get(r.target_temp_id, r.target_temp_id)
+            f.write(f" - {src} -> {r.relation_type} -> {tgt}\n")
+        
+        f.write(f"\nMissing Context Attributes: {len(missing_context)}\n")
+        f.write(f"Has Management Node: {has_management}\n")
+        f.write(f"Has Market Node: {has_market}\n")
+        f.write(f"Has ProductPortfolio Node: {has_product_portfolio}\n")
+    
+    print("Verification complete. Results in verify_result.txt")
 
 if __name__ == "__main__":
     asyncio.run(verify())

@@ -58,6 +58,7 @@
         "COMPETITORS_OF",
         "LEADS",
         "HAS_CAPABILITY",
+        "OPERATES_IN_MARKET",
         "DEVELOPS_TECHNOLOGY",
         "USES_TECHNOLOGY",
         "BELONGS_TO_INDUSTRY",
@@ -327,6 +328,21 @@
         },
         {
             "source": "LegalEntity",
+            "relation": "OPERATES_IN_MARKET",
+            "target": "Market"
+        },
+        {
+            "source": "Market",
+            "relation": "PART_OF",
+            "target": "LegalEntity"
+        },
+        {
+            "source": "LegalEntity",
+            "relation": "PART_OF",
+            "target": "Market"
+        },
+        {
+            "source": "LegalEntity",
             "relation": "OPERATES_IN",
             "target": "Geography"
         },
@@ -388,17 +404,17 @@
         "Market": "#9333ea"
     },
     "extraction_rules": [
-        "1. ROOT ENTITY: Identify the primary company (e.g., Nike) as LegalEntity (ROOT).",
-        "2. CONTEXTUAL ATTRIBUTES (CRITICAL): For EVERY entity, you MUST include a 'context' or 'role' attribute. Naming the node is not enough. We must know WHY it exists. Example: for 'Air Jordan', attributes: {'context': 'Flagship brand and profitable franchise since 1984'}.",
-        "3. EXTERNAL ORGANIZATIONS: All external companies (Analyst firms, Banks, Partners, JVs, Competitors) MUST be categorized as LegalEntity. Do not use 'ExternalOrganization'.",
-        "4. NO ORPHANS: Every node MUST connect to ROOT directly or indirectly. If no middle node exists, use WORKS_WITH or ANALYST_OF. Celebrities or Ambassadors (e.g. Michael Jordan) MUST connect to their Brand or ProductLine via ASSOCIATED_WITH.",
-        "5. HIERARCHIES: Leaders and managers MUST be grouped under the Management node using Roles (e.g., [Company] -> HAS_MANAGEMENT -> [Management] -> HAS_ROLE -> [Role: CEO] -> HELD_BY -> [Person]).",
-        "6. NO BYPASS (CRITICAL): Never link a Person directly to a Company or Management. ALWAYS use a the intermediate 'Role' node (e.g. CEO, COO) so the title is visible.",
-        "7. SUCCESSION: If one Person replaces another, use [Person A] -> SUCCEEDS -> [Person B].",
-        "8. GEOGRAPHY: Region -> Country -> Site hierarchy.",
-        "9. ANALYSTS & PARTNERS: External firms (Goldman Sachs, Morgan Stanley) MUST connect to the Subject Company via ANALYST_OF or REPORTS_ON.",
-        "10. QUANT DATA: DO NOT create nodes for Revenue, PAT, Assets, etc. These MUST only be in 'quant_data' linked to an entity ID.",
-        "11. DIRECTION CRITICAL: Relations MUST flow from the observer to the subject. Examples: [Firm] -> ANALYST_OF -> [Company], [Person] -> ASSOCIATED_WITH -> [Brand/Product]. NEVER invert these.",
-        "12. BUSINESS UNITS: Key divisions (e.g. Wealth Management) are BusinessUnit nodes."
+        "1. ROOT ENTITY: Identify the primary company (e.g., Nike) as LegalEntity (ROOT). EVERY OTHER NODE MUST HAVE A PATH TO THIS ROOT.",
+        "2. CONTEXTUAL ATTRIBUTES (CRITICAL): For EVERY entity, you MUST include a 'context' or 'role' attribute. Naming the node is not enough. We must know WHY it exists.",
+        "3. EXTERNAL ORGANIZATIONS: All external companies (Analyst firms, Banks, Partners, JVs, Competitors) MUST be categorized as LegalEntity.",
+        "4. NO ORPHANS / NO ISLANDS (ZERO TOLERANCE): Every single node MUST connect to ROOT directly or indirectly. If no direct relation exists in the text, you MUST infer one (e.g., [Company] -> OPERATES_IN_MARKET -> [Market], [Company] -> STRATEGIC_CONTEXT -> [Geography]). NEVER leave a node floating.",
+        "5. HIERARCHIES (MULTI-HOP ENFORCEMENT): Leaders and managers MUST be grouped using the full chain: [Company] -> HAS_MANAGEMENT -> [Management] -> HAS_ROLE -> [Role: CEO] -> HELD_BY -> [Person]. NEVER link Person directly to Company.",
+        "6. NO BYPASS (CRITICAL): Never link a Person or Brand directly to a Company if a hierarchical path exists. NO SHORTCUTS ALLOWED.",
+        "7. MARKET ANCHORING: Every 'Market' node MUST connect back to the ROOT Subject Company via 'OPERATES_IN_MARKET' or 'PART_OF'. NEVER leave Market nodes floating.",
+        "8. SUCCESSION: If one Person replaces another, use [Person A] -> SUCCEEDS -> [Person B].",
+        "9. GEOGRAPHY: Region -> Country -> Site hierarchy. Anchor the Company to the Region.",
+        "10. ANALYSTS & PARTNERS: External firms (Goldman Sachs) MUST connect to the Subject Company via ANALYST_OF (Firm -> Subject).",
+        "11. NO ISLANDS: Every node MUST have at least one incoming or outgoing edge that eventually leads to the ROOT. If missing, create 'Strategic Context' or 'Market Context' nodes.",
+        "12. QUANT DATA: All financial metrics belong in the quant_data list of an entity, NOT as separate nodes."
     ]
 }

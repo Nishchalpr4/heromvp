@@ -86,7 +86,7 @@ def get_dynamic_prompt() -> str:
         "TEMPORAL NORMALIZATION: For the 'period' field in quant_data, use standard YYYY-QX or YYYY-MM or YYYY-FY formats.",
         "REFERENTIAL INTEGRITY (FATAL ERROR): Every single 'source_temp_id' and 'target_temp_id' used in relations MUST EXACTLY MATCH a 'temp_id' defined in the 'entities' list. NEVER hallucinate or misspell IDs.",
         "GEOSPATIAL ABSTRACTION: If a text mentions a Region (e.g., Southeast Asia) and its Countries (Vietnam, Cambodia), connect the Company ONLY to the Region. Connect the Countries to the Region using 'PART_OF'. DO NOT connect the Company directly to the Countries.",
-        "HYPOTHETICAL NODES: You MUST create intermediate nodes (like 'Management' or 'ProductPortfolio' or specific 'Role's) even if not explicitly named in the text, to satisfy the required allowed relations chain.",
+        "HYPOTHETICAL NODES (ZERO TOLERANCE FOR ISLANDS): You MUST create intermediate nodes (like 'Management', 'ProductPortfolio', or 'Market') to ensure EVERY node connects to the ROOT. For example, a Market node MUST connect to the Company via 'OPERATES_IN_MARKET'. NEVER leave a node floating.",
         "PRODUCT HIERARCHY (STRICT): [Company] -> HAS_PRODUCT_PORTFOLIO -> [ProductPortfolio node] -> HAS_PRODUCT_DOMAIN/FAMILY/LINE -> [Brand/Product node]. NEVER link products directly to the Company. ALWAYS use the Portfolio hierarchy.",
         "NO BYPASS (CRITICAL): NEVER create a direct relation from a sub-node (e.g., PERSON, BRAND, ROLE) to the ROOT if a hierarchical path exists. Direct shortcuts are FORBIDDEN."
     ]

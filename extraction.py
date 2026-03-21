@@ -544,22 +544,18 @@ async def call_llm(text: str, document_name: str = "User Input", section_ref: st
         endpoint = endpoint.rstrip("/") + "/chat/completions"
     
     import asyncio
-    max_retries = 3
-    retry_delay = 2
+    max_retries = 2 # Reduced to 2 to stay under Render's 30s timeout
+    retry_delay = 1 # Shorter initial delay
     finish_reason = "mock"
     content = ""
 
     try:
-        async with httpx.AsyncClient(timeout=120.0) as client:
+        async with httpx.AsyncClient(timeout=60.0) as client:
             for attempt in range(max_retries):
                 response = await client.post(endpoint, headers=headers, json=body)
                 
                 if response.status_code == 429:
-                    backoff = retry_delay * (2 ** attempt)
-                    retry_after = response.headers.get("Retry-After")
-                    if retry_after and retry_after.isdigit():
-                        backoff = int(retry_after) + 1
-                    
+                    backoff = retry_delay * (attempt + 1) # Linear backoff 1s, 2s
                     print(f"[RETRY] Rate limited (429). Retrying in {backoff}s... (Attempt {attempt+1}/{max_retries})")
                     await asyncio.sleep(backoff)
                     continue
@@ -570,7 +566,7 @@ async def call_llm(text: str, document_name: str = "User Input", section_ref: st
                 finish_reason = result["choices"][0].get("finish_reason", "stop")
                 break
             else:
-                raise Exception("Max retries exceeded for API Rate Limit (429).")
+                raise Exception("API Rate Limit exceeded. Please wait 1 minute before trying again.")
     except Exception as e:
         print(f"[ERROR] LLM API failed: {e}.")
         raise Exception(f"API Rate Limit or Connection Error. Please wait a few minutes and try again. Details: {e}")

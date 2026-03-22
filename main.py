@@ -45,18 +45,16 @@ app = FastAPI(
 store = GraphStore()
 
 # ── STARTUP SEQUENCE ──
-# Ensures the ontology is alive and the LogicGuard is ready to validate incoming extractions.
 @app.on_event("startup")
-def startup_seed():
-    print(f"SERVER STARTUP: PID {os.getpid()} starting...")
+def startup_sequence():
+    """Initializes the GraphStore and ensures it has the latest ontology from the DB."""
+    print(f"SERVER STARTUP: PID {os.getpid()} initializing state...")
     try:
-        # Initial seed if empty
-        store.db.seed_ontology()
+        # We don't seed here anymore (handled in build), just fetch the latest
         store.ontology = store.db.get_ontology()
-        
-        # Guard is built from the ontology
+        from validators import LogicGuard
         store.guard = LogicGuard(store.ontology)
-        print("SERVER STARTUP: Ontology and LogicGuard updated successfully.")
+        print("SERVER STARTUP: State initialized successfully.")
     except Exception as e:
         print(f"SERVER STARTUP ERROR: {e}")
         traceback.print_exc()

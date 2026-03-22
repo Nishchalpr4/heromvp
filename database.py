@@ -37,9 +37,16 @@ class DatabaseManager:
         # ThreadedConnectionPool is safer for FastAPI's concurrency.
         try:
             from psycopg2 import pool
+            
+            # Add connection timeout to prevent hanging on bad network
+            if "?" in self.db_url:
+                dsn = f"{self.db_url}&connect_timeout=10"
+            else:
+                dsn = f"{self.db_url}?connect_timeout=10"
+                
             self.pool = pool.ThreadedConnectionPool(
                 1, 20, # min, max connections
-                dsn=self.db_url,
+                dsn=dsn,
                 sslmode='require' # Required for Neon
             )
             logger.info("Neon Postgres Threaded Connection Pool initialized.")

@@ -52,7 +52,6 @@ def startup_sequence():
     try:
         # We don't seed here anymore (handled in build), just fetch the latest
         store.ontology = store.db.get_ontology()
-        from validators import LogicGuard
         store.guard = LogicGuard(store.ontology)
         print("SERVER STARTUP: State initialized successfully.")
     except Exception as e:
@@ -66,7 +65,6 @@ async def reseed_ontology():
         # Force a clean overwrite (merge=False) to clear stale legacy labels
         store.db.seed_ontology(merge_with_existing=False)
         store.ontology = store.db.get_ontology()
-        from validators import LogicGuard
         store.guard = LogicGuard(store.ontology)
         return {"success": True, "message": "Ontology re-seeded successfully."}
     except Exception as e:
@@ -111,7 +109,7 @@ async def extract_entities(req: ExtractRequest):
         )
 
         # Ingest into graph store
-        diff = store.ingest_extraction(payload, source_authority=req.source_authority)
+        diff = store.ingest_extraction(payload, source_authority=req.source_authority, metadata=req.metadata)
 
         # Return diff + full graph state
         full_graph = store.get_full_graph()

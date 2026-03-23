@@ -79,36 +79,37 @@ class GraphVisualization {
 
         // Force simulation - STRICT ARCHITECTURAL TOP-TO-BOTTOM
         this.simulation = d3.forceSimulation()
-            .force("link", d3.forceLink().id(d => d.id).distance(150).strength(0.5))
-            .force("charge", d3.forceManyBody().strength(-800).distanceMax(1000)) 
-            .force("collision", d3.forceCollide().radius(100).iterations(2))
+            .force("link", d3.forceLink().id(d => d.id).distance(180).strength(0.6)) // Increased distance
+            .force("charge", d3.forceManyBody().strength(-1200).distanceMax(1200)) // Stronger repulse
+            .force("collision", d3.forceCollide().radius(120).iterations(4)) // Increased radius and iterations
             
             // Strict Tiering: Force Y pulls nodes to their specific architectural level
-            .force("y", d3.forceY(d => this._getNodeLevel(d.type) * 200 + 100).strength(0.8))
+            .force("y", d3.forceY(d => this._getNodeLevel(d) * 240 + 100).strength(0.9)) // More tier spacing
             
-            // Clustering Force: Keep children near parents
+            // Clustering Force: Keep children near parents (Management -> Roles)
             .force("cluster", (alpha) => this._applyClustering(alpha))
 
             // Horizontal Separation: Organize categories from Left to Right
             .force("x", d3.forceX(d => {
                 const type = d.type;
-                const level = this._getNodeLevel(type);
+                const level = this._getNodeLevel(d);
                 if (level === 0) return this.width / 2; // Apex centered
                 
-                // Left Wing
-                if (["Management", "Person", "Role"].includes(type)) return this.width * 0.3;
-                // Right Wing
-                if (["Competitors", "ExternalOrganization"].includes(type)) return this.width * 0.7;
-                // Center-Left
+                // Management & People on Left
+                if (["Management", "Person", "Role"].includes(type)) return this.width * 0.25;
+                // External/Competitors on Right
+                if (["Competitors", "ExternalOrganization"].includes(type)) return this.width * 0.75;
+                // Geography/Sites in Center-Left
                 if (["Geography", "Site"].includes(type)) return this.width * 0.4;
-                // Center-Right
-                if (["BusinessUnit", "ProductDomain", "ProductFamily", "ProductLine"].includes(type)) return this.width * 0.6;
+                // Business Units & Products in Center-Right
+                if (["BusinessUnit", "ProductPortfolio", "ProductDomain", "ProductFamily", "ProductLine"].includes(type)) return this.width * 0.6;
                 
                 return this.width / 2;
-            }).strength(0.3)) // Stronger X force for dedicated columns
+            }).strength(0.4))
             
             .alphaDecay(0.04)
             .on("tick", () => this._tick());
+
 
         this.simulation.stop();
 
@@ -423,17 +424,16 @@ class GraphVisualization {
     // ── Layout Tick ────────────────────────────────────────────
 
     _tick() {
-        // Update paths with curves
+        // Update paths with curves and offsets to prevent overlaps
         this.linkGroup.selectAll(".edge-path")
             .attr("d", d => {
                 const dx = d.target.x - d.source.x;
                 const dy = d.target.y - d.source.y;
                 const dist = Math.sqrt(dx * dx + dy * dy) || 1;
 
-                // Box intersection for target to keep arrow visible
-                // Card dimensions: 220x70 => half: 110x35
-                const W = 110 + 4; // padding
-                const H = 35 + 4; // padding
+                // Box intersection for target (220x70 card)
+                const W = 110 + 6;
+                const H = 35 + 6;
                 const scaleTarget = Math.min(
                     Math.abs(dx) > 0.1 ? Math.abs(W / dx) : W,
                     Math.abs(dy) > 0.1 ? Math.abs(H / dy) : H,
@@ -445,11 +445,23 @@ class GraphVisualization {
                 const tx = d.target.x - dx * scaleTarget;
                 const ty = d.target.y - dy * scaleTarget;
 
-                // S-Curve (Cubic Bezier) for Architectural flow
-                // We use dynamic control points to ensure the flow is clearly top-down
+                // S-Curve Offset logic for parallel links between same nodes
+                const sameNodes = this.links.filter(l => 
+                    (l.source.id === d.source.id && l.target.id === d.target.id) ||
+                    (l.source.id === d.target.id && l.target.id === d.source.id)
+                );
+                
+                const offsetAmount = 25; // Horizontal sway offset
+                let midOffset = 0;
+                if (sameNodes.length > 1) {
+                    const idx = sameNodes.indexOf(d);
+                    midOffset = (idx - (sameNodes.length - 1) / 2) * offsetAmount;
+                }
+
                 const midY = sy + (ty - sy) / 2;
-                return `M${sx},${sy} C${sx},${midY} ${tx},${midY} ${tx},${ty}`;
+                return `M${sx},${sy} C${sx + midOffset},${midY} ${tx + midOffset},${midY} ${tx},${ty}`;
             });
+
 
         // Position edge labels at midpoint of S-Curve
         this.linkGroup.selectAll(".edge-label")
@@ -781,28 +793,33 @@ class GraphVisualization {
     // ── Utilities ───────────────────────────────────────────────
 
     // ── Architectural Tiers ───────────────────────────────────
-    _getNodeLevel(type) {
+    _getNodeLevel(node) {
+        const type = node.type;
+        const isRoot = node.attributes && node.attributes.is_root === true;
+
         const levels = {
-            "LegalEntity": 0,           // Apex
-            "Management": 1, 
-            "Competitors": 1,
-            "ProductPortfolio": 1,
-            "BusinessUnit": 1,
-            "Role": 2,                  // Under Management
-            "Person": 3,                // Under Role
-            "Site": 3,
-            "ProductDomain": 4, 
-            "Technology": 4, 
-            "Geography": 4,
-            "ProductFamily": 5, 
-            "Capability": 5,
-            "ProductLine": 6, 
-            "Brand": 6,
-            "EndMarket": 7, 
-            "Channel": 7, 
-            "Program": 7
+            "LegalEntity": 1,           // Partners/Competitors
+            "Management": 2, 
+            "Competitors": 2,
+            "ProductPortfolio": 2,
+            "BusinessUnit": 2,
+            "Role": 3, 
+            "Person": 4, 
+            "Site": 4,
+            "ProductDomain": 5, 
+            "Technology": 5, 
+            "Geography": 5,
+            "ProductFamily": 6, 
+            "Capability": 6,
+            "ProductLine": 7, 
+            "Brand": 7,
+            "EndMarket": 8, 
+            "Channel": 8, 
+            "Program": 8
         };
-        return levels[type] !== undefined ? levels[type] : 3;
+
+        if (isRoot) return 0;
+        return levels[type] !== undefined ? levels[type] : 4;
     }
 
     _truncateLabel(text, maxLen) {

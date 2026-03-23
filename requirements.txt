@@ -5,6 +5,4 @@ python-dotenv
 httpx
 pydantic>=2.0
 python-multipart
-jinja2
-pypdf
 psycopg2-binary

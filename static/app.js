@@ -29,6 +29,7 @@ const ENTITY_TYPE_COLORS = {
     "Management":           "#FFD700",
     "Competitors":          "#C0392B",
     "ProductPortfolio":     "#3b82f6",
+    "Manufacturer":         "#f43f5e",
 };
 
 // ── State ──────────────────────────────────────────────────────────

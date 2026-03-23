@@ -65,7 +65,7 @@ from database import DatabaseManager
 db = DatabaseManager()
 
 def get_dynamic_prompt() -> str:
-    """Builds a system prompt using rules fetched from the database."""
+    """Builds a highly structural system prompt with tier-based hierarchy and few-shot examples."""
     ontology = db.get_ontology()
     entity_types = ", ".join(ontology.get('entity_types', []))
     
@@ -75,440 +75,74 @@ def get_dynamic_prompt() -> str:
     relations_str = "\n".join(relations_list)
     
     rules_list = ontology.get('extraction_rules', [])
-    # Strip any leading numbers from the ontology rules to prevent "1. 1." errors
     cleaned_rules = [re.sub(r'^\d+\.\s*', '', r) for r in rules_list]
     
-    # Combine DB rules with strict system rules
-    all_rules = cleaned_rules + [
-        "TRUST LAYER: For EVERY entity and relation, you MUST provide 'source_text' (verbatim quote) and 'confidence' (0.0 to 1.0).",
-        "QUANT LAYER: Identify numeric financial metrics (Revenue, PAT, Market Size) and return them in the 'quant_data' list.",
-        "AUTO-DISCOVERY: If you find an important entity or relation type NOT on the list above, return it in the 'discoveries' list.",
-        "TEMPORAL NORMALIZATION: For the 'period' field in quant_data, use standard YYYY-QX or YYYY-MM or YYYY-FY formats.",
-        "REFERENTIAL INTEGRITY (FATAL ERROR): Every single 'source_temp_id' and 'target_temp_id' used in relations MUST EXACTLY MATCH a 'temp_id' defined in the 'entities' list. NEVER hallucinate or misspell IDs.",
-        "GEOSPATIAL ABSTRACTION: If a text mentions a Region (e.g., Southeast Asia) and its Countries (Vietnam, Cambodia), connect the Company ONLY to the Region. Connect the Countries to the Region using 'PART_OF'. DO NOT connect the Company directly to the Countries.",
-        "HYPOTHETICAL NODES (ZERO TOLERANCE FOR ISLANDS): You MUST create intermediate nodes (like 'Management', 'ProductPortfolio', or 'Market') to ensure EVERY node connects to the ROOT. For example, a Market node MUST connect to the Company via 'OPERATES_IN_MARKET'. NEVER leave a node floating.",
-        "PRODUCT HIERARCHY (STRICT): [Company] -> HAS_PRODUCT_PORTFOLIO -> [ProductPortfolio node] -> HAS_PRODUCT_DOMAIN/FAMILY/LINE -> [Brand/Product node]. NEVER link products directly to the Company. ALWAYS use the Portfolio hierarchy.",
-        "NO BYPASS (CRITICAL): NEVER create a direct relation from a sub-node (e.g., PERSON, BRAND, ROLE) to the ROOT if a hierarchical path exists. Direct shortcuts are FORBIDDEN."
+    # Tiered Hierarchy Logic (STRICT)
+    tier_rules = [
+        "TIER 0 (APEX): Primary Company (LegalEntity).",
+        "TIER 1 (CONTAINERS): Management, Competitors, ProductPortfolio, BusinessUnit, Manufacturer.",
+        "TIER 2 (ROLES/DOMAINS): Role, ProductDomain, Site, Sector.",
+        "TIER 3 (PEOPLE/FAMILIES): Person, ProductFamily, Technology, Capability.",
+        "TIER 4 (LINES/LEAF): ProductLine, Brand, Program, Initiative."
+    ]
+    all_rules = cleaned_rules + tier_rules + [
+        "REASONING (CRITICAL): You MUST output a 'thought_process' field. Explain how you connected every node to the ROOT. List the 'missing links' you had to infer to prevent islands.",
+        "ZERO FLOATING NODES (STRICT): Every entity MUST have an incoming or outgoing relationship that eventually leads to the Tier 0 ROOT. Absolute zero tolerance for floating leaf nodes (e.g. Mac).",
+        "UNIFIED HARDWARE GROUPING: When the text mentions diverse hardware (e.g. iPhone, Mac), group them under a single ProductFamily node: 'Hardware Products' (unless specific sub-families like 'Phones' are mentioned).",
+        "PRODUCT TAXONOMY (FACTUAL): Consumer Electronics (ProductDomain) -> Hardware Products (ProductFamily) -> iPhone / Mac (ProductLines). This creates a valid 4-hop chain (Company -> Portfolio -> Domain -> Family -> Line).",
+        "SUPPLY CHAIN: Nodes like Foxconn should be 'Manufacturer' type and linked via 'MANUFACTURES_FOR' to the LegalEntity.",
+        "DEEP GEOGRAPHY: Scrutinize every location. If 'Asia' is mentioned, create a Geography node and link the company via 'OPERATES_IN'.",
+        "NARRATIVE ATTRIBUTES: Capture focuses (e.g. 'design focus') as detailed fields in the LegalEntity's 'attributes' object.",
+        "STRICT NUMERICS: The 'value' field in 'quant_data' MUST be a JSON number.",
+        "MANAGEMENT CHAIN: [Company] -> HAS_MANAGEMENT -> [Management] -> HAS_ROLE -> [Role] -> HELD_BY -> [Person].",
+        "GEOSPATIAL HIERARCHY: Region -> Country -> Site. Link Company to the Region.",
+        "CATEGORY SYNTHESIS: You MUST synthesize intermediate nodes (Portfolio -> Domain -> Family) even if not explicitly named in the text, to bridge the leaf products back to the ROOT.",
+        "EVIDENCE: Every relation MUST have 'source_text' with the EXACT verbatim quote."
     ]
     
     rules_str = "\n".join([f"{i+1}. {rule}" for i, rule in enumerate(all_rules)])
     
-    return f"""You are a professional investment intelligence system. Convert unstructured text into a high-trust knowledge graph.
+    return f"""### ROLE
+You are an Advanced Investment Analyst AI. Your task is to transform unstructured corporate text into a STICKER HIERARCHICAL KNOWLEDGE GRAPH. 
 
-### 1. ALLOWED ENTITIES (Use EXACTLY these labels)
-{entity_types}
-
-### 2. ALLOWED RELATIONS (Strict Mapping Only)
+### 1. ONTOLOGY (LABELS ONLY)
+- ENTITY TYPES: {entity_types}
+- ALLOWED TRIPLES:
 {relations_str}
 
-### 3. EXTRACTION RULES
+### 2. STRUCTURAL MANDATES (EXECUTION STANDARDS)
 {rules_str}
 
-### 4. OUTPUT FORMAT (Strict JSON)
+### 3. FEW-SHOT EXAMPLE (GOLD STANDARD)
+INPUT: "Apple designs and sells consumer electronics like the iPhone and Mac. Manufacturing is handled by Foxconn in Asia."
+OUTPUT:
 {{
-    "thought_process": "Analyze the text for hierarchy, trust, and missing types...",
+    "thought_process": "1. Apple Inc. is ROOT. 2. Created 'Apple Product Portfolio' as a top-level container. 3. 'Consumer Electronics' is a ProductDomain under the Portfolio. 4. iPhone and Mac share a 'Hardware Products' ProductFamily under the domain. 5. Foxconn is a Manufacturer; linked it to Apple via MANUFACTURES_FOR. 6. Asia is a Geography; linked Apple to it via OPERATES_IN.",
     "entities": [
-        {{
-            "temp_id": "e_root",
-            "entity_type": "LegalEntity",
-            "canonical_name": "Official Name",
-            "attributes": {{ "context": "Detailed explanation of why this entity matters in this context" }},
-            "source_text": "...",
-            "confidence": 0.95,
-            "evidence": [{{ "evidence_quote": "..." }}]
-        }}
+        {{ "temp_id": "e_root", "entity_type": "LegalEntity", "canonical_name": "Apple Inc." }},
+        {{ "temp_id": "e_port", "entity_type": "ProductPortfolio", "canonical_name": "Apple Product Portfolio" }},
+        {{ "temp_id": "e_dom", "entity_type": "ProductDomain", "canonical_name": "Consumer Electronics" }},
+        {{ "temp_id": "e_fam", "entity_type": "ProductFamily", "canonical_name": "Hardware Products" }},
+        {{ "temp_id": "e_lp", "entity_type": "ProductLine", "canonical_name": "iPhone" }},
+        {{ "temp_id": "e_lm", "entity_type": "ProductLine", "canonical_name": "Mac" }},
+        {{ "temp_id": "e_mfr", "entity_type": "Manufacturer", "canonical_name": "Foxconn" }},
+        {{ "temp_id": "e_geo", "entity_type": "Geography", "canonical_name": "Asia" }}
     ],
     "relations": [
-        {{
-            "source_temp_id": "...",
-            "target_temp_id": "...",
-            "relation_type": "...",
-            "source_text": "...",
-            "confidence": 0.9,
-            "evidence": [{{ "evidence_quote": "..." }}]
-        }}
-    ],
-    "quant_data": [
-        {{ "metric": "Revenue", "value": 2500, "unit": "Cr", "period": "2026-Q3", "subject_id": "e_root" }},
-        {{ "metric": "PAT", "value": 15.5, "unit": "Billion", "period": "2024-FY", "subject_id": "e_root" }}
-    ],
-    "discoveries": [
-        {{ "type": "ENTITY", "name": "...", "suggested_label": "NewEntityType", "context": "..." }},
-        {{ "type": "RELATION", "name": "...", "suggested_label": "NEW_RELATION", "source_type": "TypeA", "target_type": "TypeB", "context": "..." }}
-    ],
-    "analysis_attributes": {{ ... }},
-    "llm_analysis_summary": "..."
+        {{ "source_temp_id": "e_root", "target_temp_id": "e_port", "relation_type": "HAS_PRODUCT_PORTFOLIO", "source_text": "Apple designs and sells...", "confidence": 1.0 }},
+        {{ "source_temp_id": "e_port", "target_temp_id": "e_dom", "relation_type": "HAS_PRODUCT_DOMAIN", "source_text": "consumer electronics", "confidence": 1.0 }},
+        {{ "source_temp_id": "e_dom", "target_temp_id": "e_fam", "relation_type": "HAS_PRODUCT_FAMILY", "source_text": "iPhone and Mac", "confidence": 1.0 }},
+        {{ "source_temp_id": "e_fam", "target_temp_id": "e_lp", "relation_type": "HAS_PRODUCT_LINE", "source_text": "iPhone", "confidence": 1.0 }},
+        {{ "source_temp_id": "e_fam", "target_temp_id": "e_lm", "relation_type": "HAS_PRODUCT_LINE", "source_text": "Mac", "confidence": 1.0 }},
+        {{ "source_temp_id": "e_mfr", "target_temp_id": "e_root", "relation_type": "MANUFACTURES_FOR", "source_text": "manufacturing is handled by Foxconn", "confidence": 1.0 }},
+        {{ "source_temp_id": "e_root", "target_temp_id": "e_geo", "relation_type": "OPERATES_IN", "source_text": "manufacturing concentrated in Asia", "confidence": 1.0 }}
+    ]
 }}
+
+### 4. FINAL INSTRUCTION
+Process the text below. Ensure zero orphans. Ensure every node has a relationship path tracing back to the Tier 0 ROOT.
 """
 
-def _mock_extraction_response(text: str, document_id: str, document_name: str, section_ref: str) -> str:
-    """Generate a mock extraction response for demo/fallback when LLM API fails."""
-    # Simple keyword matching to extract entities
-    entities = []
-    relations = []
-    quant_data = [] # New field
-    discoveries = [] # New field
-    entity_id_map = {}
-    next_id = 1
-    
-    # Extract company names (heuristic: capitalized words before "Corp", "Inc", "Ltd", etc.)
-    import re
-    company_pattern = r'\b([A-Z][a-z\s]*(?:Corp|Inc|Ltd|LLC|AG|SE|Co))\b'
-    companies = re.findall(company_pattern, text)
-    
-    # Create entity candidates for companies first
-    for company in set(companies):
-        eid = f"e{next_id}"
-        entity_id_map[company] = eid
-        entities.append({
-            "temp_id": eid,
-            "entity_type": "LegalEntity",
-            "canonical_name": company,
-            "aliases": [],
-            "attributes": {},
-            "evidence": [{
-                "document_id": document_id,
-                "document_name": document_name,
-                "section_ref": section_ref,
-                "evidence_quote": company
-            }],
-            "confidence": 0.9
-        })
-        next_id += 1
-
-    # Extract additional company mentions that may not include typical suffixes
-    # BUT: Skip "published by <Company>" since those are sources/citations, not entities
-    company_cues = []
-    # Removed "published by" pattern to avoid extracting sources as entities
-    for pat in company_cues:
-        for match in re.findall(pat, text):
-            if match in entity_id_map:
-                continue
-            eid = f"e{next_id}"
-            entity_id_map[match] = eid
-            entities.append({
-                "temp_id": eid,
-                "entity_type": "LegalEntity",
-                "canonical_name": match,
-                "aliases": [],
-                "attributes": {},
-                "evidence": [{
-                    "document_id": document_id,
-                    "document_name": document_name,
-                    "section_ref": section_ref,
-                    "evidence_quote": match
-                }],
-                "confidence": 0.8
-            })
-            next_id += 1
-
-    # Extract persons primarily by role/leadership cues to avoid catching dates or geographies as people
-    stop_first_words = {"in", "on", "at", "the", "a", "an", "according", "per"}
-    month_words = {"january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"}
-
-    role_titles = ["CEO", "COO", "CTO", "CFO", "President", "VP", "Vice President", "Manager"]
-    # Match roles like "CEO John Donahoe" or "COO Andy Campion".
-    # Avoid case-insensitive matching to prevent unintended captures like "and COO".
-    role_pattern = re.compile(rf"\b(?:{'|'.join(role_titles)})\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)")
-    for match in role_pattern.finditer(text):
-        person_name = match.group(1).strip()
-        first_word = person_name.split()[0].lower()
-        if first_word in stop_first_words or first_word in month_words:
-            continue
-        if person_name not in entity_id_map:
-            eid = f"e{next_id}"
-            entity_id_map[person_name] = eid
-            entities.append({
-                "temp_id": eid,
-                "entity_type": "Person",
-                "canonical_name": person_name,
-                "aliases": [],
-                "attributes": {},
-                "evidence": [{
-                    "document_id": document_id,
-                    "document_name": document_name,
-                    "section_ref": section_ref,
-                    "evidence_quote": person_name
-                }],
-                "confidence": 0.85
-            })
-            next_id += 1
-
-    # Extract geographies via common regional keywords and explicit place names
-    # Geographic hierarchy: Regions -> Countries -> Cities
-    geo_hierarchy = {
-        "Southeast Asia": ["Vietnam", "Indonesia", "Cambodia", "Thailand", "Philippines", "Singapore", "Malaysia"],
-        "Europe": ["Germany", "France", "UK", "Spain", "Italy"],
-    }
-    
-    extracted_geos = {}  # {geo: "region" or "country"}
-    country_to_region = {}  # {country: parent_region}
-    
-    # Scan text for all geographies - prioritize longer/more specific names first
-    # to avoid matching "Asia" when "Southeast Asia" is present
-    geo_priority = [
-        "Southeast Asia", "East Asia", "South Asia", "Central Asia",
-        "Europe", "North America", "South America",
-        "Vietnam", "Indonesia", "Cambodia", "Thailand", "Philippines", "Singapore", "Malaysia",
-        "Germany", "France", "UK", "Spain", "Italy", "India", "China", "Japan", "Korea"
-    ]
-    
-    for geo in geo_priority:
-        if re.search(rf"\b{re.escape(geo)}\b", text, re.IGNORECASE):
-            # Determine if this is a region or country
-            is_region = any(geo in geos for geos in geo_hierarchy.keys())
-            extracted_geos[geo] = "region" if is_region else "country"
-            
-            # Track parent region for countries
-            if not is_region:
-                for region, countries in geo_hierarchy.items():
-                    if geo in countries:
-                        country_to_region[geo] = region
-                        # Ensure parent region is also extracted
-                        if region not in extracted_geos:
-                            extracted_geos[region] = "region_inferred"
-                        break
-    
-    # Create Geography entities
-    regions_created = set()
-    for geo, geo_type in extracted_geos.items():
-        if geo not in entity_id_map:
-            eid = f"e{next_id}"
-            entity_id_map[geo] = eid
-            entities.append({
-                "temp_id": eid,
-                "entity_type": "Geography",
-                "canonical_name": geo,
-                "aliases": [],
-                "attributes": {},
-                "evidence": [{
-                    "document_id": document_id,
-                    "document_name": document_name,
-                    "section_ref": section_ref,
-                    "evidence_quote": geo
-                }],
-                "confidence": 0.9 if geo_type in ["region", "region_inferred"] else 0.85
-            })
-            if geo_type in ["region", "region_inferred"]:
-                regions_created.add(geo)
-            next_id += 1
-    
-    # Create parent-child geography relations (PART_OF)
-    # Link countries to their parent regions
-    for country, parent_region in country_to_region.items():
-        if country in entity_id_map and parent_region in entity_id_map:
-            relations.append({
-                "source_temp_id": entity_id_map[country],
-                "target_temp_id": entity_id_map[parent_region],
-                "relation_type": "PART_OF",
-                "evidence": [{
-                    "document_id": document_id,
-                    "document_name": document_name,
-                    "section_ref": section_ref,
-                    "evidence_quote": f"{country} is in {parent_region}"
-                }],
-                "confidence": 0.9
-            })
-    
-    # Determine the primary company to anchor leadership relations
-    company_ids = [entity_id_map[c] for c in companies if c in entity_id_map]
-    primary_company_id = company_ids[0] if company_ids else None
-
-    # Extract roles and leadership
-    role_titles = ["CEO", "COO", "CTO", "CFO", "President", "VP", "Manager"]
-    role_before_pattern = re.compile(rf"\b({'|'.join(role_titles)})\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)")
-    role_after_pattern1 = re.compile(rf"\b([A-Z][a-z]+\s+[A-Z][a-z]+)\s+(?:is|serves as)\s+(?:the\s+)?({'|'.join(role_titles)})\b")
-    role_after_pattern2 = re.compile(rf"\b([A-Z][a-z]+\s+[A-Z][a-z]+)\s+(?:is|are|was|were|serves as|served as)\s+(?:the\s+)?(?:current\s+)?({'|'.join(role_titles)})\b")
-
-
-    # Create Management node for the primary company
-    management_id = None
-    if primary_company_id and companies:
-        company_name = companies[0]
-        management_id = f"e{next_id}"
-        mgmt_name = f"{company_name} Management"
-        entities.append({
-            "temp_id": management_id,
-            "entity_type": "Management",
-            "canonical_name": mgmt_name,
-            "aliases": [],
-            "attributes": {},
-            "evidence": [{
-                "document_id": document_id,
-                "document_name": document_name,
-                "section_ref": section_ref,
-                "evidence_quote": f"Management of {company_name}"
-            }],
-            "confidence": 0.9
-        })
-        relations.append({
-            "source_temp_id": primary_company_id,
-            "target_temp_id": management_id,
-            "relation_type": "HAS_MANAGEMENT",
-            "evidence": [{
-                "document_id": document_id,
-                "document_name": document_name,
-                "section_ref": section_ref,
-                "evidence_quote": f"{company_name} management"
-            }],
-            "confidence": 0.9
-        })
-        next_id += 1
-
-    # Extract roles and leadership
-    seen_roles = set()
-    for pattern in (role_before_pattern, role_after_pattern1, role_after_pattern2):
-        for match in re.findall(pattern, text):
-            if len(match) == 2 and match[0] in role_titles:
-                role_title, person_name = match
-            else:
-                person_name, role_title = match
-
-            person_name = person_name.strip()
-            role_title = role_title.strip()
-            role_key = (person_name, role_title)
-            if role_key in seen_roles:
-                continue
-            seen_roles.add(role_key)
-
-            # Create Designation entity (role as a position under Management)
-            designation_id = f"e{next_id}"
-            next_id += 1
-            entities.append({
-                "temp_id": designation_id,
-                "entity_type": "Role",
-                "canonical_name": role_title,
-                "aliases": [],
-                "attributes": {},
-                "evidence": [{
-                    "document_id": document_id,
-                    "document_name": document_name,
-                    "section_ref": section_ref,
-                    "evidence_quote": f"{person_name} is {role_title}"
-                }],
-                "confidence": 0.9
-            })
-
-            # Management -> Role (HAS_ROLE)
-            if management_id:
-                relations.append({
-                    "source_temp_id": management_id,
-                    "target_temp_id": designation_id,
-                    "relation_type": "HAS_ROLE",
-                    "evidence": [{
-                        "document_id": document_id,
-                        "document_name": document_name,
-                        "section_ref": section_ref,
-                        "evidence_quote": f"{mgmt_name} has {role_title}"
-                    }],
-                    "confidence": 0.9
-                })
-
-            # Role -> Person (HELD_BY)
-            if person_name in entity_id_map:
-                person_id = entity_id_map[person_name]
-                relations.append({
-                    "source_temp_id": designation_id,
-                    "target_temp_id": person_id,
-                    "relation_type": "HELD_BY",
-                    "evidence": [{
-                        "document_id": document_id,
-                        "document_name": document_name,
-                        "section_ref": section_ref,
-                        "evidence_quote": f"{role_title} held by {person_name}"
-                    }],
-                    "confidence": 0.9
-                })
-    
-    # Extract acquisitions/partnerships with better patterns
-    acq_keywords = ["acquired", "acquired by", "acquires", "acquisition of", "took over", "merged with"]
-    for keyword in acq_keywords:
-        if keyword.lower() in text.lower():
-            # Pattern: "X acquired Y" or "X acquired Y Inc"
-            acq_pattern = rf'([A-Z][a-z\s]*?(?:Corp|Inc|Ltd|LLC|Co)?(?:\s+Inc)?(?:\s+Ltd)?)\s+(?:{re.escape(keyword)})\s+([A-Z][a-zA-Z\s]*?(?:Inc|Corp|Ltd|LLC|Co)?)'
-            acquisitions = re.findall(acq_pattern, text)
-            for acquirer, target in acquisitions:
-                acquirer = acquirer.strip()
-                target = target.strip()
-                # Avoid dummy entries
-                if len(acquirer) < 3 or len(target) < 3 or acquirer == target:
-                    continue
-                # Create target entity if not exists
-                if target not in entity_id_map:
-                    eid = f"e{next_id}"
-                    entity_id_map[target] = eid
-                    entities.append({
-                        "temp_id": eid,
-                        "entity_type": "ExternalOrganization",
-                        "canonical_name": target,
-                        "aliases": [],
-                        "attributes": {},
-                        "evidence": [{
-                            "document_id": document_id,
-                            "document_name": document_name,
-                            "section_ref": section_ref,
-                            "evidence_quote": target
-                        }],
-                        "confidence": 0.75
-                    })
-                    next_id += 1
-                # Create acquisition relation
-                if acquirer in entity_id_map and target in entity_id_map:
-                    relations.append({
-                        "source_temp_id": entity_id_map[acquirer],
-                        "target_temp_id": entity_id_map[target],
-                        "relation_type": "ACQUIRED_STAKE_IN",
-                        "evidence": [{
-                            "document_id": document_id,
-                            "document_name": document_name,
-                            "section_ref": section_ref,
-                            "evidence_quote": f"{acquirer} {keyword} {target}"
-                        }],
-                        "confidence": 0.85
-                    })
-            break  # Avoid duplicate processing
-    
-    # Redundant region relations removed to follow NO REDUNDANCY rule.
-    # Geography hierarchy is now handled via Country -> PART_OF -> Region.
-    
-    # Extract Sectors
-    sectors = ["Financial Services", "Technology", "Healthcare", "Consumer Goods", "Energy"]
-    for sector in sectors:
-        if re.search(rf"\b{re.escape(sector)}\b", text, re.IGNORECASE):
-            if sector not in entity_id_map:
-                eid = f"e{next_id}"
-                entity_id_map[sector] = eid
-                entities.append({
-                    "temp_id": eid,
-                    "entity_type": "Sector",
-                    "canonical_name": sector,
-                    "evidence": [{"document_id": document_id, "document_name": document_name, "section_ref": section_ref, "evidence_quote": sector}],
-                    "confidence": 0.8
-                })
-                next_id += 1
-            if primary_company_id:
-                relations.append({
-                    "source_temp_id": primary_company_id,
-                    "target_temp_id": entity_id_map[sector],
-                    "relation_type": "BELONGS_TO_SECTOR",
-                    "evidence": [{"document_id": document_id, "document_name": document_name, "section_ref": section_ref, "evidence_quote": f"firm in {sector}"}],
-                    "confidence": 0.8
-                })
-
-    return json.dumps({
-        "thought_process": "Mock extraction using regex patterns (LLM API unavailable)",
-        "entities": entities,
-        "relations": relations,
-        "quant_data": quant_data,
-        "discoveries": discoveries,
-        "abstentions": [],
-        "analysis_attributes": {
-            "signal_type": "neutral",
-            "sentiment": "neutral",
-            "metric_type": ["N/A"]
-        },
-        "llm_analysis_summary": "Mock analysis generated from regex patterns."
-    })
 
 
 async def call_llm(text: str, document_name: str = "User Input", section_ref: str = "chunk", metadata: dict = {}, custom_prompt: str = None) -> ExtractionPayload:

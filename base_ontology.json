@@ -23,7 +23,8 @@
         "Management",
         "Competitors",
         "ProductPortfolio",
-        "Market"
+        "Market",
+        "Manufacturer"
     ],
     "relation_types": [
         "HAS_MANAGEMENT",
@@ -77,7 +78,8 @@
         "PARTNER_OF",
         "ANALYZES",
         "DRIVEN_BY",
-        "ASSOCIATED_WITH"
+        "ASSOCIATED_WITH",
+        "MANUFACTURES_FOR"
     ],
     "allowed_triples": [
         {
@@ -374,6 +376,11 @@
             "source": "Market",
             "relation": "DRIVEN_BY",
             "target": "LegalEntity"
+        },
+        {
+            "source": "Manufacturer",
+            "relation": "MANUFACTURES_FOR",
+            "target": "LegalEntity"
         }
     ],
     "entity_colors": {
@@ -400,7 +407,8 @@
         "Management": "#FFD700",
         "Competitors": "#C0392B",
         "ProductPortfolio": "#3b82f6",
-        "Market": "#9333ea"
+        "Market": "#9333ea",
+        "Manufacturer": "#f43f5e"
     },
     "extraction_rules": [
         "1. ROOT ENTITY: Identify the primary company (e.g., Nike) as LegalEntity (ROOT). EVERY OTHER NODE MUST HAVE A PATH TO THIS ROOT.",

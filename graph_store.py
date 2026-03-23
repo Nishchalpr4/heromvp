@@ -103,24 +103,33 @@ class GraphStore:
         text = re.sub(r'\s+', ' ', text).strip()
         return text
 
-    def ingest_extraction(self, payload: ExtractionPayload, source_authority: int = 5):
+    def ingest_extraction(self, payload: ExtractionPayload, source_authority: int = 5, metadata: dict = {}):
         """Main entry point for processing LLM extraction results."""
         id_map = {} # temp_id -> canonical_id
         
+        # Identify the root entity if possible from metadata
+        subject_name = (metadata.get("company_name") or "").strip()
+        subject_id = None
+        if subject_name:
+            subject_id = make_entity_id("LegalEntity", subject_name)
+
         for entity in payload.entities:
             can_id = self.resolve_entity(entity)
             id_map[entity.temp_id] = can_id
             
+            # Identify if this node represents the primary subject for anchoring
+            is_subject = (can_id == subject_id)
+            
             # Fetch color from ontology
             ont_colors = self.ontology.get('entity_colors', {})
-            ent_color = ont_colors.get(entity.entity_type, "#3b82f6") # Default fallback blue
+            ent_color = ont_colors.get(entity.entity_type, "#3b82f6") 
 
             self.db.upsert_entity(
                 entity_id=can_id,
                 name=entity.canonical_name,
                 entity_type=entity.entity_type,
                 color=ent_color,
-                attributes=entity.attributes,
+                attributes={**entity.attributes, "is_root": is_subject},
                 aliases=entity.aliases
             )
             

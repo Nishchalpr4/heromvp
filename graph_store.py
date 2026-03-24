@@ -97,12 +97,24 @@ class GraphStore:
         finally:
             conn.close()
 
+    _DEDUPE_MAP: dict[str, str] = {
+        "america": "united states",
+        "american": "united states",
+        "u s": "united states",
+        "us": "united states",
+        "nvidia": "nvidia corporation",
+        "graphics and compute": "graphics and compute processors",
+    }
+
     def _normalize_name(self, name: str) -> str:
         text = name.lower()
+        # Remove standard corporate suffixes
         text = re.sub(r'\b(inc\.|inc|corp\.|corp|llc\.|llc|ag\.|ag|se\.|se|co\.|co|ltd\.|ltd|limited)\b', '', text)
         text = re.sub(r'[^\w\s]', '', text)
         text = re.sub(r'\s+', ' ', text).strip()
-        return text
+        
+        # Apply deduplication map
+        return self._DEDUPE_MAP.get(text, text)
 
     def ingest_extraction(self, payload: ExtractionPayload, source_authority: int = 5, metadata: dict = {}):
         """Main entry point for processing LLM extraction results."""
@@ -147,6 +159,8 @@ class GraphStore:
                 name=entity.canonical_name,
                 entity_type=entity.entity_type,
                 color=ent_color,
+                description=entity.description,
+                short_info=entity.short_info,
                 attributes=attributes,
                 aliases=entity.aliases
             )

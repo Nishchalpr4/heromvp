@@ -106,7 +106,12 @@ def get_dynamic_prompt() -> str:
         "CATEGORY SYNTHESIS: You MUST synthesize intermediate nodes (Portfolio -> Domain -> Family) even if not explicitly named in the text, to bridge the leaf products back to the ROOT.",
         "EVIDENCE: Every relation MUST have 'source_text' with the EXACT verbatim quote.",
         "ENTITY DESCRIPTION (STRICT): Every entity MUST have a concise 1-sentence 'description' field explaining its identity/role.",
-        "RELATION ATTRIBUTES (STRICT): Every relation MUST have an 'attributes' object containing a 'description' (explaining the link) and a 'weight' (float 0.0-1.0 representing strength/importance)."
+        "RELATION ATTRIBUTES (STRICT): Every relation MUST have an 'attributes' object containing a 'description' (explaining the link) and a 'weight' (float 0.0-1.0 representing strength/importance).",
+        "CANONICAL SINGLETONS (DEDUPE): Use formal canonical names. Example: Use 'United States' instead of 'America' or 'American'.",
+        "ANTI-GROUPING (SPLIT): NEVER create a single node for a list of entities. Example: Split 'AMD and Intel' into separate Compititor nodes.",
+        "MANDATORY ENTITY CHECKLIST: You MUST create separate nodes for: 1. EVERY mentioned country/geography, 2. EVERY mentioned End Market (e.g. 'Gaming', 'Data Centers'), 3. EVERY mentioned technology capability (e.g. 'AI Hardware', 'AI Software').",
+        "EXHAUSTIVE RELATIONSHIPS: Every product line MUST link to its taxonomical parent AND its target End Market (e.g. GeForce -> Graphics AND GeForce -> Gaming).",
+        "DENSITY OVER SIMPLICITY: I prioritize absolute factual completeness. If it's in the text, it MUST be in the graph as a node or relation. Expected count: 12-18 entities."
     ]
     
     rules_str = "\n".join([f"{i+1}. {rule}" for i, rule in enumerate(all_rules)])
@@ -123,58 +128,56 @@ You are an Advanced Investment Analyst AI. Your task is to transform unstructure
 {rules_str}
 
 ### 3. FEW-SHOT EXAMPLE (GOLD STANDARD)
-INPUT: "Apple designs and sells consumer electronics like the iPhone and Mac. Manufacturing is handled by Foxconn in Asia."
+INPUT: "Apple designs and sells consumer electronics like the iPhone and Mac. Manufacturing is handled by Foxconn in Asia. It competes with Samsung and Google."
 OUTPUT:
 {{
-    "thought_process": "1. Apple Inc. is ROOT. 2. Created 'Apple Product Portfolio' as a top-level container. 3. 'Consumer Electronics' is a ProductDomain under the Portfolio. 4. iPhone and Mac share a 'Hardware Products' ProductFamily under the domain. 5. Foxconn is a Manufacturer; linked it to Apple via MANUFACTURES_FOR. 6. Asia is a Geography; linked Apple to it via OPERATES_IN.",
+    "thought_process": "1. Apple Inc. is ROOT. 2. Created 'Apple Product Portfolio' as a top-level container. 3. 'Consumer Electronics' is a ProductDomain and an EndMarket. 4. iPhone and Mac share a 'Hardware Products' ProductFamily under the domain. 5. Foxconn is a Manufacturer; linked it to Apple via MANUFACTURES_FOR. 6. Samsung and Google are split into separate Competitor nodes. 7. United States is a Geography for Apple.",
     "entities": [
-        {{ "temp_id": "e_root", "entity_type": "LegalEntity", "canonical_name": "Apple Inc.", "description": "A global leader in consumer electronics and software services." }},
-        {{ "temp_id": "e_port", "entity_type": "ProductPortfolio", "canonical_name": "Apple Product Portfolio", "description": "The unified collection of Apple's consumer and professional products." }},
-        {{ "temp_id": "e_dom", "entity_type": "ProductDomain", "canonical_name": "Consumer Electronics", "description": "A broad domain covering electronic devices intended for everyday use." }},
-        {{ "temp_id": "e_fam", "entity_type": "ProductFamily", "canonical_name": "Hardware Products", "description": "Tangible devices manufactured and sold by Apple." }},
-        {{ "temp_id": "e_lp", "entity_type": "ProductLine", "canonical_name": "iPhone", "description": "Apple's flagship line of smartphones." }},
-        {{ "temp_id": "e_lm", "entity_type": "ProductLine", "canonical_name": "Mac", "description": "Apple's line of personal computers and laptops." }},
-        {{ "temp_id": "e_mfr", "entity_type": "Manufacturer", "canonical_name": "Foxconn", "description": "Major contract electronics manufacturer and key Apple supplier." }},
-        {{ "temp_id": "e_geo", "entity_type": "Geography", "canonical_name": "Asia", "description": "The primary geographic region for Apple's supply chain operations." }}
+        {{ 
+            "temp_id": "e_root", "entity_type": "LegalEntity", "canonical_name": "Apple Inc.", 
+            "description": "A global leader in consumer electronics and software services.",
+            "short_info": "Global Tech Giant",
+            "aliases": ["Apple"],
+            "attributes": {{ "is_root": true }}
+        }},
+        {{ 
+            "temp_id": "e_lp", "entity_type": "ProductLine", "canonical_name": "iPhone", 
+            "description": "Apple's flagship line of smartphones.",
+            "short_info": "Smartphone Line",
+            "attributes": {{ }}
+        }},
+        {{ 
+            "temp_id": "e_geo", "entity_type": "Geography", "canonical_name": "United States", 
+            "description": "The primary country of origin for the subject.",
+            "short_info": "US Origin",
+            "attributes": {{ }}
+        }},
+        {{ 
+            "temp_id": "e_em", "entity_type": "EndMarket", "canonical_name": "Consumer Electronics", 
+            "description": "The target market for Apple's hardware products.",
+            "short_info": "Hardware Market",
+            "attributes": {{ }}
+        }},
+        {{ 
+            "temp_id": "e_comp1", "entity_type": "Competitors", "canonical_name": "Samsung", 
+            "description": "A major competitor in the smartphone market.",
+            "short_info": "Tech Competitor",
+            "attributes": {{ }}
+        }}
     ],
     "relations": [
-        {{ "source_temp_id": "e_root", "target_temp_id": "e_port", "relation_type": "HAS_PRODUCT_PORTFOLIO", "source_text": "Apple designs and sells...", "confidence": 1.0, "weight": 1.0, "attributes": {{ "description": "Apple manages its entire product offering through this portfolio." }} }},
-        {{ "source_temp_id": "e_port", "target_temp_id": "e_dom", "relation_type": "HAS_PRODUCT_DOMAIN", "source_text": "consumer electronics", "confidence": 1.0, "weight": 0.9, "attributes": {{ "description": "The portfolio is anchored by the Consumer Electronics domain." }} }},
-        {{ "source_temp_id": "e_dom", "target_temp_id": "e_fam", "relation_type": "HAS_PRODUCT_FAMILY", "source_text": "iPhone and Mac", "confidence": 1.0, "weight": 0.8, "attributes": {{ "description": "Hardware products form the core of the consumer electronics domain." }} }},
-        {{ "source_temp_id": "e_fam", "target_temp_id": "e_lp", "relation_type": "HAS_PRODUCT_LINE", "source_text": "iPhone", "confidence": 1.0, "weight": 1.0, "attributes": {{ "description": "iPhone is the primary revenue driver in the hardware family." }} }},
-        {{ "source_temp_id": "e_fam", "target_temp_id": "e_lm", "relation_type": "HAS_PRODUCT_LINE", "source_text": "Mac", "confidence": 1.0, "weight": 0.7, "attributes": {{ "description": "Mac is a secondary but significant part of the hardware family." }} }},
-        {{ "source_temp_id": "e_mfr", "target_temp_id": "e_root", "relation_type": "MANUFACTURES_FOR", "source_text": "manufacturing is handled by Foxconn", "confidence": 1.0, "weight": 1.0, "attributes": {{ "description": "Foxconn serves as the primary assembly partner for Apple." }} }},
-        {{ "source_temp_id": "e_root", "target_temp_id": "e_geo", "relation_type": "OPERATES_IN", "source_text": "manufacturing concentrated in Asia", "confidence": 1.0, "weight": 0.9, "attributes": {{ "description": "Apple has deep operational and supply chain roots across Asia." }} }}
+        {{ "source_temp_id": "e_root", "target_temp_id": "e_lp", "relation_type": "HAS_PRODUCT_LINE", "source_text": "Apple designs and sells iPhone", "confidence": 1.0, "weight": 1.0, "attributes": {{ "description": "iPhone is the primary revenue driver." }} }},
+        {{ "source_temp_id": "e_root", "target_temp_id": "e_geo", "relation_type": "OPERATES_IN", "source_text": "American company", "confidence": 1.0, "weight": 1.0, "attributes": {{ "description": "Headquartered in US." }} }},
+        {{ "source_temp_id": "e_lp", "target_temp_id": "e_em", "relation_type": "SERVES_END_MARKET", "source_text": "iPhone for consumer electronics", "confidence": 1.0, "weight": 1.0, "attributes": {{ "description": "Primary market for iPhone." }} }},
+        {{ "source_temp_id": "e_root", "target_temp_id": "e_comp1", "relation_type": "COMPETES_WITH", "source_text": "competes with Samsung", "confidence": 1.0, "weight": 1.0, "attributes": {{ "description": "Major rival." }} }}
     ]
 }}
 
-### 3.1 JSON SCHEMA (Entities)
-```json
-    {
-      "temp_id": "unique_id_for_this_extraction",
-      "entity_type": "LegalEntity",
-      "canonical_name": "Entity Name",
-      "aliases": ["Alias 1", "Alias 2"],
-      "attributes": { "key": "value" },
-      "description": "Full detailed description.",
-      "short_info": "2-3 word high-level essence (e.g. 'Global Tech Giant' or 'Key Manufacturer')",
-      "confidence": 0.95,
-      "evidence": [
-        {
-          "text": "verbatim quote from source",
-          "start_offset": 0,
-          "end_offset": 0,
-          "page_number": 1
-        }
-      ]
-    }
-```
-
 ### 4. FINAL INSTRUCTION
 Process the text below.
-OUTPUT ONLY THE JSON OBJECT. DO NOT INCLUDE ANY MARKDOWN FENCES (```json), PREAMBLE, OR POST-TEXT. 
-THE OUTPUT MUST START WITH '{' AND END WITH '}'.
-Ensure zero orphans. Ensure every node has a relationship path tracing back to the Tier 0 ROOT.
+OUTPUT ONLY THE JSON OBJECT. THE OUTPUT MUST START WITH '{{' AND END WITH '}}'.
+MANDATORY: Every entity MUST have a non-null 'description' (full sentence) AND a non-null 'short_info' (2-3 words, e.g. 'Tech Supplier').
+Ensure zero orphans. Every node MUST trace back to the ROOT.
 """
 
 
@@ -274,9 +277,16 @@ async def call_llm(text: str, document_name: str = "User Input", section_ref: st
     skipped_entities = []
     for e in parsed.get("entities", []):
         try:
+            # DEFENSIVE FALLBACK: Ensure mandatory fields are never null
+            if not e.get("short_info"):
+                e["short_info"] = e.get("canonical_name", "N/A")[:30]
+            if not e.get("description"):
+                e["description"] = f"A {e.get('entity_type', 'Entity')} related to {e.get('canonical_name', 'topic')}."
+                
+            print(f"[DEBUG] Processing entity '{e.get('canonical_name')}': short_info='{e.get('short_info')}'")
+            
             ent_cand = EntityCandidate(**e)
             if ent_cand.entity_type not in valid_entity_types:
-                # We allow it but mark as discovery if not in valid types
                 pass
             entities.append(ent_cand)
         except Exception as exc:

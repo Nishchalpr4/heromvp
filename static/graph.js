@@ -79,12 +79,12 @@ class GraphVisualization {
 
         // Force simulation - STRICT ARCHITECTURAL TOP-TO-BOTTOM
         this.simulation = d3.forceSimulation()
-            .force("link", d3.forceLink().id(d => d.id).distance(320).strength(0.7)) // More spacing
-            .force("charge", d3.forceManyBody().strength(-3000).distanceMax(2000)) // More repulsion
-            .force("collision", d3.forceCollide().radius(180).iterations(6)) // Less overlap
+            .force("link", d3.forceLink().id(d => d.id).distance(100).strength(0.85)) // Ultra-compact distance
+            .force("charge", d3.forceManyBody().strength(-1200).distanceMax(1000)) // Scaled repulsion
+            .force("collision", d3.forceCollide().radius(100).iterations(6)) // Tighter collision
 
-            // Adaptive vertical tiering
-            .force("y", d3.forceY(d => this._getNodeLevel(d) * 350 + 120).strength(1.0))
+            // Adaptive vertical tiering (Ultra-Tighter)
+            .force("y", d3.forceY(d => this._getNodeLevel(d) * 120 + 80).strength(1.2))
 
             // Adaptive horizontal separation by type
             .force("x", d3.forceX(d => {
@@ -167,7 +167,7 @@ class GraphVisualization {
             if (existing) {
                 return { ...nd, x: existing.x, y: existing.y, fx: existing.fx, fy: existing.fy };
             } else {
-                const tierY = this._getNodeLevel(nd.type) * 220 + 80;
+                const tierY = this._getNodeLevel(nd.type) * 100 + 50;
                 return {
                     ...nd,
                     x: cx + (Math.random() - 0.5) * 400,
@@ -219,9 +219,9 @@ class GraphVisualization {
 
     _getNodeDims(d) {
         if (this.collapsedNodes.has(d.id)) {
-            return { w: 140, h: 50 };
+            return { w: 100, h: 40 };
         }
-        return { w: 240, h: 120 };
+        return { w: 160, h: 84 }; // Ultra-compact base size
     }
 
     _renderNodes(newNodeIds) {
@@ -244,111 +244,94 @@ class GraphVisualization {
         // Background card
         enter.append("rect")
             .attr("class", "node-bg")
-            .attr("width", d => this._getNodeDims(d).w)
-            .attr("height", d => this._getNodeDims(d).h)
-            .attr("x", d => -this._getNodeDims(d).w / 2)
-            .attr("y", d => -this._getNodeDims(d).h / 2)
+            .attr("width", d => self._getNodeDims(d).w)
+            .attr("height", d => self._getNodeDims(d).h)
+            .attr("x", d => -self._getNodeDims(d).w / 2)
+            .attr("y", d => -self._getNodeDims(d).h / 2)
             .attr("rx", 10)
             .attr("ry", 10)
             .attr("fill", "#1a2845")
             .attr("stroke", d => {
-                if (this.collapsedNodes.has(d.id)) return "#3b82f6";
+                if (self.collapsedNodes.has(d.id)) return "#3b82f6";
                 return newNodeIds.has(d.id) ? "#fbbf24" : "#334155";
             })
-            .attr("stroke-width", d => (newNodeIds.has(d.id) || this.collapsedNodes.has(d.id)) ? 3 : 2)
+            .attr("stroke-width", d => (newNodeIds.has(d.id) || self.collapsedNodes.has(d.id)) ? 3 : 2)
             .style("filter", "url(#shadow)");
         
         // Color accent line
         enter.append("rect")
             .attr("width", 5)
-            .attr("height", d => this._getNodeDims(d).h)
-            .attr("x", d => -this._getNodeDims(d).w / 2)
-            .attr("y", d => -this._getNodeDims(d).h / 2)
+            .attr("height", d => self._getNodeDims(d).h)
+            .attr("x", d => -self._getNodeDims(d).w / 2)
+            .attr("y", d => -self._getNodeDims(d).h / 2)
             .attr("rx", 2)
             .attr("fill", d => d.color || "#3b82f6");
 
         // Icon bg
         enter.append("circle")
-            .attr("cx", d => -this._getNodeDims(d).w / 2 + 30)
-            .attr("cy", d => -this._getNodeDims(d).h / 2 + 30)
-            .attr("r", 16)
+            .attr("cx", d => -self._getNodeDims(d).w / 2 + 20)
+            .attr("cy", d => -self._getNodeDims(d).h / 2 + 20)
+            .attr("r", 10)
             .attr("fill", d => d.color || "#3b82f6")
             .attr("opacity", 0.2);
 
         // Icon text
         enter.append("text")
-            .attr("x", d => -this._getNodeDims(d).w / 2 + 30)
-            .attr("y", d => -this._getNodeDims(d).h / 2 + 36)
+            .attr("x", d => -self._getNodeDims(d).w / 2 + 20)
+            .attr("y", d => -self._getNodeDims(d).h / 2 + 24)
             .attr("text-anchor", "middle")
             .attr("fill", d => d.color || "#3b82f6")
-            .attr("font-size", "14px")
+            .attr("font-size", "10px")
             .attr("font-weight", "700")
             .attr("pointer-events", "none")
-            .text(d => this._getNodeIcon(d.type));
+            .text(d => self._getNodeIcon(d.type));
 
         // Type label
         enter.append("text")
-            .attr("x", d => -this._getNodeDims(d).w / 2 + 55)
-            .attr("y", d => -this._getNodeDims(d).h / 2 + 22)
+            .attr("x", d => -self._getNodeDims(d).w / 2 + 38)
+            .attr("y", d => -self._getNodeDims(d).h / 2 + 16)
             .attr("fill", d => d.color || "#3b82f6")
-            .attr("font-size", "10px")
+            .attr("font-size", "7.5px")
             .attr("font-weight", "800")
             .attr("letter-spacing", "0.05em")
             .attr("pointer-events", "none")
-            .text(d => this._formatType(d.type).toUpperCase());
+            .text(d => self._formatType(d.type).toUpperCase());
 
         // Entity name
         enter.append("text")
             .attr("class", "node-title")
-            .attr("x", d => -this._getNodeDims(d).w / 2 + 55)
-            .attr("y", d => -this._getNodeDims(d).h / 2 + 42)
+            .attr("x", d => -self._getNodeDims(d).w / 2 + 38)
+            .attr("y", d => -self._getNodeDims(d).h / 2 + 30)
             .attr("fill", "#ffffff")
-            .attr("font-size", "15px")
+            .attr("font-size", "12px")
             .attr("font-weight", "700")
             .attr("pointer-events", "none")
-            .text(d => this._truncateLabel(d.label, 20));
+            .text(d => self._truncateLabel(d.label, 16));
 
-        // Short Info (The requested 'short info inside node')
+        // Short Info
         enter.append("text")
             .attr("class", "node-short-info")
-            .attr("x", d => -this._getNodeDims(d).w / 2 + 55)
-            .attr("y", d => -this._getNodeDims(d).h / 2 + 60)
+            .attr("x", d => -self._getNodeDims(d).w / 2 + 38)
+            .attr("y", d => -self._getNodeDims(d).h / 2 + 42)
             .attr("fill", d => d.color || "#3b82f6")
-            .attr("font-size", "11px")
+            .attr("font-size", "9px")
             .attr("font-weight", "600")
             .attr("pointer-events", "none")
-            .text(d => this._truncateLabel(d.short_info || "N/A", 30));
+            .text(d => self._truncateLabel(d.short_info || "N/A", 22));
 
-        // Node summary (fallback or extra context)
+        // Node summary
         enter.append("text")
             .attr("class", "node-summary")
-            .attr("x", d => -this._getNodeDims(d).w / 2 + 55)
-            .attr("y", d => -this._getNodeDims(d).h / 2 + 75)
+            .attr("x", d => -self._getNodeDims(d).w / 2 + 38)
+            .attr("y", d => -self._getNodeDims(d).h / 2 + 54)
             .attr("fill", "#cbd5e1")
-            .attr("font-size", "9px")
+            .attr("font-size", "7.5px")
             .attr("font-weight", "400")
             .attr("font-style", "italic")
             .attr("pointer-events", "none")
             .text(d => {
-                // Prefer evidence_snippet (source text), then summary, else auto-generate
-                if (d.attributes && d.attributes.evidence_snippet && d.attributes.evidence_snippet.length > 0) {
-                    return self._truncateLabel(d.attributes.evidence_snippet, 38);
-                }
-                if (d.summary && d.summary.length > 0) {
-                    return self._truncateLabel(d.summary, 38);
-                }
-                // Fallback: type, label, and a key attribute
-                let keyAttr = "";
-                if (d.attributes) {
-                    const keys = Object.keys(d.attributes).filter(k => k !== 'description');
-                    if (keys.length > 0) {
-                        keyAttr = `${keys[0]}: ${d.attributes[keys[0]]}`;
-                    }
-                }
-                let fallback = `${self._formatType(d.type)} node`;
-                if (d.label) fallback += ` — ${d.label}`;
-                if (keyAttr) fallback += ` (${keyAttr})`;
-                return self._truncateLabel(fallback, 38);
+                const text = d.attributes?.evidence_snippet || d.summary || "";
+                return self._truncateLabel(text, 30);
             });
 
         // Attributes Grid (Visible on glance)
@@ -357,49 +340,48 @@ class GraphVisualization {
             const container = d3.select(this);
             const attrs = d.attributes || {};
             const keys = Object.keys(attrs).filter(k => k !== 'description');
-            const maxDirect = 4; // Show up to 4 attributes directly
+            const maxDirect = 2; // Show only top 2 in ultra-compact
             keys.forEach((key, i) => {
                 if (i < maxDirect) {
                     container.append("text")
                         .attr("x", -self._getNodeDims(d).w / 2 + 15)
-                        .attr("y", 65 + (i * 14))
+                        .attr("y", 24 + (i * 10))
                         .attr("fill", "#94a3b8")
-                        .attr("font-size", "9px")
+                        .attr("font-size", "7.5px")
                         .attr("font-weight", "600")
                         .text(`${key.toUpperCase()}:`);
 
                     container.append("text")
-                        .attr("x", -45)
-                        .attr("y", 65 + (i * 14))
+                        .attr("x", -self._getNodeDims(d).w / 2 + 45)
+                        .attr("y", 24 + (i * 10))
                         .attr("fill", "#cbd5e1")
-                        .attr("font-size", "9px")
+                        .attr("font-size", "7.5px")
                         .attr("font-weight", "400")
-                        .text(self._truncateLabel(String(attrs[key]), 25));
+                        .text(self._truncateLabel(String(attrs[key]), 18));
                 }
             });
-            // If there are more attributes, show a '...' indicator
             if (keys.length > maxDirect) {
                 container.append("text")
                     .attr("x", -self._getNodeDims(d).w / 2 + 15)
-                    .attr("y", 65 + (maxDirect * 14))
+                    .attr("y", 24 + (maxDirect * 10))
                     .attr("fill", "#cbd5e1")
-                    .attr("font-size", "9px")
+                    .attr("font-size", "7px")
                     .attr("font-weight", "400")
                     .text("... more");
             }
         });
 
-        // Description (bottom line)
+        // Description (bottom line - very tiny)
         enter.append("text")
-            .attr("x", d => -this._getNodeDims(d).w / 2 + 15)
-            .attr("y", d => this._getNodeDims(d).h / 2 - 12)
+            .attr("x", d => -self._getNodeDims(d).w / 2 + 15)
+            .attr("y", d => self._getNodeDims(d).h / 2 - 8)
             .attr("fill", "#64748b")
-            .attr("font-size", "9px")
+            .attr("font-size", "7.5px")
             .attr("font-weight", "400")
             .attr("font-style", "italic")
             .attr("pointer-events", "none")
             .text(d => {
-                if (this.collapsedNodes.has(d.id)) return "";
+                if (self.collapsedNodes.has(d.id)) return "";
                 const desc = d.description || d.attributes?.description || "";
                 return self._truncateLabel(desc, 45);
             });
@@ -413,10 +395,10 @@ class GraphVisualization {
                 self._highlightConnections(d, false);
                 self._hideTooltip();
             })
-            .on("click", (event, d) => this._showDetails(d, "node"))
+            .on("click", (event, d) => self._showDetails(d, "node"))
             .on("dblclick", (event, d) => {
                 event.stopPropagation();
-                this._toggleCollapse(d.id);
+                self._toggleCollapse(d.id);
             });
 
         // Animate in

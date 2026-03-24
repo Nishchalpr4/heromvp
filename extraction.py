@@ -57,7 +57,13 @@ def _repair_truncated_json(raw: str) -> dict:
     text += ']' * max(0, open_brackets)
     text += '}' * max(0, open_braces)
 
-    return json.loads(text)
+    try:
+        return json.loads(text)
+    except Exception as e:
+        print("\n[ERROR] Failed to parse LLM JSON output:")
+        print(text)
+        print(f"[ERROR] {e}")
+        raise
 
 
 from database import DatabaseManager
@@ -117,7 +123,8 @@ You are an Advanced Investment Analyst AI. Your task is to transform unstructure
 
 ### 3. FEW-SHOT EXAMPLE (GOLD STANDARD)
 INPUT: "Apple designs and sells consumer electronics like the iPhone and Mac. Manufacturing is handled by Foxconn in Asia."
-OUTPUT:{{
+OUTPUT:
+{{
     "thought_process": "1. Apple Inc. is ROOT. 2. Created 'Apple Product Portfolio' as a top-level container. 3. 'Consumer Electronics' is a ProductDomain under the Portfolio. 4. iPhone and Mac share a 'Hardware Products' ProductFamily under the domain. 5. Foxconn is a Manufacturer; linked it to Apple via MANUFACTURES_FOR. 6. Asia is a Geography; linked Apple to it via OPERATES_IN.",
     "entities": [
         {{ "temp_id": "e_root", "entity_type": "LegalEntity", "canonical_name": "Apple Inc.", "description": "A global leader in consumer electronics and software services." }},

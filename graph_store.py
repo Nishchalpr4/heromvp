@@ -116,27 +116,44 @@ class GraphStore:
         for entity in payload.entities:
             can_id = self.resolve_entity(entity)
             id_map[entity.temp_id] = can_id
-            
+
             # Identify if this node represents the primary subject for anchoring
             is_subject = (can_id == subject_id)
-            
+
             # Fetch color from ontology
             ont_colors = self.ontology.get('entity_colors', {})
-            ent_color = ont_colors.get(entity.entity_type, "#3b82f6") 
+            ent_color = ont_colors.get(entity.entity_type, "#3b82f6")
+
+            # --- Evidence/source text fix ---
+            # If entity.source_text is missing, use first evidence's evidence_quote if available
+            source_text = (entity.source_text or "").strip()
+            evidence_snippet = None
+            if not source_text and entity.evidence and len(entity.evidence) > 0:
+                first_ev = entity.evidence[0]
+                # Try both 'evidence_quote' and 'source_text' for compatibility
+                source_text = getattr(first_ev, 'evidence_quote', None) or getattr(first_ev, 'source_text', None) or ""
+                evidence_snippet = source_text
+            elif entity.evidence and len(entity.evidence) > 0:
+                first_ev = entity.evidence[0]
+                evidence_snippet = getattr(first_ev, 'evidence_quote', None) or getattr(first_ev, 'source_text', None) or ""
+            # Add snippet to attributes for frontend display
+            attributes = {**entity.attributes, "is_root": is_subject}
+            if evidence_snippet:
+                attributes["evidence_snippet"] = evidence_snippet
 
             self.db.upsert_entity(
                 entity_id=can_id,
                 name=entity.canonical_name,
                 entity_type=entity.entity_type,
                 color=ent_color,
-                attributes={**entity.attributes, "is_root": is_subject},
+                attributes=attributes,
                 aliases=entity.aliases
             )
-            
+
             self.db.add_assertion(
                 subject_id=can_id,
                 subject_type='ENTITY',
-                source_text=entity.source_text or "",
+                source_text=source_text,
                 confidence=entity.confidence,
                 document_name=payload.source_document_name,
                 section_ref=entity.evidence[0].section_ref if entity.evidence else "extract",

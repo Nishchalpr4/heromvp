@@ -319,7 +319,10 @@ class GraphVisualization {
             .attr("font-style", "italic")
             .attr("pointer-events", "none")
             .text(d => {
-                // Prefer explicit summary, else auto-generate
+                // Prefer evidence_snippet (source text), then summary, else auto-generate
+                if (d.attributes && d.attributes.evidence_snippet && d.attributes.evidence_snippet.length > 0) {
+                    return self._truncateLabel(d.attributes.evidence_snippet, 38);
+                }
                 if (d.summary && d.summary.length > 0) {
                     return self._truncateLabel(d.summary, 38);
                 }
@@ -838,20 +841,24 @@ class GraphVisualization {
 
         // --- EVIDENCE & TRUST SECTION ---
         if (d.evidence && d.evidence.length > 0) {
-            html += `<div class="detail-section"><h4>Evidence Trail</h4>`;
-            d.evidence.forEach(ev => {
-                const confClass = ev.confidence < 0.8 ? 'low' : '';
-                html += `
-                    <div class="evidence-box">
-                        <p>"${ev.source_text || 'No verbatim quote'}"</p>
-                        <div class="evidence-meta">
-                            <div>📄 ${ev.document_name} · ${ev.section_ref}</div>
-                            <div class="confidence-badge ${confClass}">Trust: ${(ev.confidence * 100).toFixed(0)}%</div>
+            // Only show evidence with a real source_text
+            const validEvidence = d.evidence.filter(ev => ev.source_text && ev.source_text.trim().length > 0);
+            if (validEvidence.length > 0) {
+                html += `<div class="detail-section"><h4>Evidence Trail</h4>`;
+                validEvidence.forEach(ev => {
+                    const confClass = ev.confidence < 0.8 ? 'low' : '';
+                    html += `
+                        <div class="evidence-box">
+                            <p>"${ev.source_text}"</p>
+                            <div class="evidence-meta">
+                                <div>📄 ${ev.document_name} · ${ev.section_ref}</div>
+                                <div class="confidence-badge ${confClass}">Trust: ${(ev.confidence * 100).toFixed(0)}%</div>
+                            </div>
                         </div>
-                    </div>
-                `;
-            });
-            html += `</div>`;
+                    `;
+                });
+                html += `</div>`;
+            }
         }
 
         content.innerHTML = html;

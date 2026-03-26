@@ -32,19 +32,59 @@ class LogicGuard:
         for t in ontology.get('allowed_triples', []):
             self.allowed_triples.add((t['source'], t['relation'], t['target']))
 
+    def refine_payload(self, payload: ExtractionPayload) -> ExtractionPayload:
+        """
+        SELF-HEALING: Actively corrects the payload structure based on rules.
+        """
+        entity_map = {e.temp_id: e for e in payload.entities}
+        
+        # 1. Type Correction based on common relations
+        for rel in payload.relations:
+            src = entity_map.get(rel.source_temp_id)
+            tgt = entity_map.get(rel.target_temp_id)
+            if not src or not tgt: continue
+            
+            # If target is linked via HAS_MANAGEMENT/HELD_BY, it MUST be Person/Management
+            if rel.relation_type in ["HAS_MANAGEMENT", "HELD_BY"] and tgt.entity_type not in ["Management", "Person"]:
+                logger.info(f"[HEAL] Fixing {tgt.canonical_name} type: {tgt.entity_type} -> Person/Management")
+                # Heuristic: If it has (CEO) or similar in short_info, it's a Person
+                if tgt.short_info and any(x in tgt.short_info.upper() for x in ["CEO", "COO", "CTO", "CHAIR"]):
+                    tgt.entity_type = "Person"
+                else:
+                    tgt.entity_type = "Management"
+                    
+            # If target is linked via HAS_PRODUCTS, it's likely a ProductLine or Portfolio
+            if rel.relation_type == "HAS_PRODUCTS" and tgt.entity_type not in ["ProductLine", "ProductFamily", "Brand"]:
+                logger.info(f"[HEAL] Fixing {tgt.canonical_name} type: {tgt.entity_type} -> ProductLine")
+                tgt.entity_type = "ProductLine"
+
+        # 2. Re-parenting for Cardinal Rule violations
+        # Rule: Person/Management cannot own a LegalEntity (usually extraction flip)
+        new_relations = []
+        for rel in payload.relations:
+            src = entity_map.get(rel.source_temp_id)
+            tgt = entity_map.get(rel.target_temp_id)
+            if not src or not tgt:
+                new_relations.append(rel)
+                continue
+                
+            if src.entity_type in ["Person", "Management"] and tgt.entity_type == "LegalEntity":
+                logger.info(f"[HEAL] Flipping relation between {src.canonical_name} and {tgt.canonical_name}")
+                rel.source_temp_id, rel.target_temp_id = rel.target_temp_id, rel.source_temp_id
+                # Logic says LegalEntity -> HAS_MANAGEMENT -> Person
+                rel.relation_type = "HAS_MANAGEMENT"
+            
+            new_relations.append(rel)
+            
+        payload.relations = new_relations
+        return payload
+
     def validate_extraction(self, payload: ExtractionPayload) -> List[str]:
         """Runs all logic guards and returns a list of warning/error messages."""
         flags = []
-        
-        # 1. Type Guard
         flags.extend(self._check_types(payload.entities, payload.relations))
-        
-        # 2. Cycle Guard
         flags.extend(self._check_cycles(payload.relations))
-        
-        # 3. Quant Guard
         flags.extend(self._check_quant(payload.quant_data))
-        
         return flags
 
     def _check_types(self, entities: List[EntityCandidate], relations: List[RelationCandidate]) -> List[str]:

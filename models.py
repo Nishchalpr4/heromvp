@@ -86,6 +86,7 @@ class GoldenChunk(BaseModel):
     analysis_attributes: AnalysisAttributes
     normalized_metrics: dict[str, list[str]] = Field(default_factory=dict)
     llm_analysis_summary: Optional[str] = None
+    reasoning_details: Optional[Any] = None
 
 class QuantMetric(BaseModel):
     metric: str
@@ -114,6 +115,7 @@ class ExtractionPayload(BaseModel):
     abstentions: list[str] = Field(default_factory=list)
     analysis_attributes: Optional[AnalysisAttributes] = None
     llm_analysis_summary: Optional[str] = None
+    reasoning_details: Optional[Any] = None
 
 class EntityMaster(BaseModel):
     entity_id: str

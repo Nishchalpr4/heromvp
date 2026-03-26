@@ -1,9 +1,11 @@
 import json
 import logging
 import os
+import re
 from datetime import datetime
 from pathlib import Path
 from dotenv import load_dotenv
+from typing import List, Dict, Any, Optional
 from validators import safe_json_loads
 
 # Load environment variables
@@ -101,7 +103,17 @@ class DatabaseManager:
             """)
             
             # 1b. Migrations (Ensure new columns exist on established production tables)
+            # Entity Master
+            cursor.execute("ALTER TABLE entity_master ADD COLUMN IF NOT EXISTS description TEXT;")
             cursor.execute("ALTER TABLE entity_master ADD COLUMN IF NOT EXISTS short_info TEXT;")
+            cursor.execute("ALTER TABLE entity_master ADD COLUMN IF NOT EXISTS color TEXT;")
+            cursor.execute("ALTER TABLE entity_master ADD COLUMN IF NOT EXISTS attributes TEXT;")
+            cursor.execute("ALTER TABLE entity_master ADD COLUMN IF NOT EXISTS aliases TEXT;")
+            
+            # Relation Master (created later)
+
+            # Assertions
+            # ALTER statements moved after assertions table creation
 
             # 2. Relation Master
             cursor.execute("""
@@ -133,6 +145,10 @@ class DatabaseManager:
                     timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             """)
+            # Apply ALTER statements after table creation
+            cursor.execute("ALTER TABLE assertions ADD COLUMN IF NOT EXISTS document_name TEXT;")
+            cursor.execute("ALTER TABLE assertions ADD COLUMN IF NOT EXISTS section_ref TEXT;")
+            cursor.execute("ALTER TABLE assertions ADD COLUMN IF NOT EXISTS source_authority INTEGER DEFAULT 5;")
             
             # 4. Quant Data (Metrics)
             cursor.execute("""
@@ -196,16 +212,15 @@ class DatabaseManager:
         """
         SURGICAL RESET: Wipes the 'drawn' graph (nodes/links) while 
         keeping the AI's 'knowledge' (ontology/discoveries) intact.
+        Uses TRUNCATE for speed and to avoid locking issues with DROP.
         """
         conn = self._get_connection()
         try:
-            cursor = conn.cursor()
-            cursor.execute("DROP TABLE IF EXISTS entity_master CASCADE")
-            cursor.execute("DROP TABLE IF EXISTS relation_master CASCADE")
-            cursor.execute("DROP TABLE IF EXISTS assertions CASCADE")
-            cursor.execute("DROP TABLE IF EXISTS quant_data CASCADE")
+            cursor = self._get_cursor(conn)
+            # Truncate all graph-related tables in one go with CASCADE
+            cursor.execute("TRUNCATE TABLE entity_master, relation_master, assertions, quant_data RESTART IDENTITY CASCADE")
             conn.commit()
-            logger.warning("Graph data tables cleared. (Ontology and Discoveries preserved)")
+            logger.warning("Graph data tables truncated. (Ontology and Discoveries preserved)")
         finally:
             self._release_connection(conn)
 
@@ -258,20 +273,35 @@ class DatabaseManager:
                     if isinstance(current_data, list) and isinstance(data, list):
                         # Merge lists, unique entries only (handle non-hashable dicts)
                         if any(isinstance(x, dict) for x in current_data + data):
-                            # Specialized merge for lists of dicts (like allowed_triples)
+                            # Specialized merge for lists of dicts (like allowed_triples or examples)
                             combined = current_data + data
                             seen = set()
                             unique_list = []
                             for item in combined:
-                                # Serialize to unique string for hashing
-                                s = json.dumps(item, sort_keys=True)
+                                # Serialize to unique string for hashing (handle input-based dedup for examples)
+                                if 'input' in item:
+                                    s = item['input'].strip().lower()
+                                else:
+                                    s = json.dumps(item, sort_keys=True)
                                 if s not in seen:
                                     seen.add(s)
                                     unique_list.append(item)
                             final_data = unique_list
                         else:
-                            # Standard set merge for hashable items (strings)
-                            final_data = list(set(current_data + data))
+                            # Standard set merge for hashable items (strings) - CLEAN BEFORE DEDUP
+                            def clean_str(s):
+                                if not isinstance(s, str): return s
+                                return re.sub(r'^\d+\.\s*', '', s.strip()).rstrip('.').lower()
+                            
+                            seen = set()
+                            unique_list = []
+                            # Add existing first, then new
+                            for s in current_data + data:
+                                cleaned = clean_str(s)
+                                if cleaned not in seen:
+                                    seen.add(cleaned)
+                                    unique_list.append(s)
+                            final_data = unique_list
                     elif isinstance(current_data, dict) and isinstance(data, dict):
                         # Merge dicts
                         final_data = {**current_data, **data}
@@ -299,11 +329,40 @@ class DatabaseManager:
                     color = COALESCE(EXCLUDED.color, entity_master.color),
                     description = COALESCE(EXCLUDED.description, entity_master.description),
                     short_info = COALESCE(EXCLUDED.short_info, entity_master.short_info),
-                    attributes = EXCLUDED.attributes,
-                    aliases = EXCLUDED.aliases,
+                    attributes = (COALESCE(NULLIF(entity_master.attributes, ''), '{}')::jsonb || EXCLUDED.attributes::jsonb)::text,
+                    aliases = (COALESCE(NULLIF(entity_master.aliases, ''), '[]')::jsonb || EXCLUDED.aliases::jsonb)::text,
                     updated_at = CURRENT_TIMESTAMP
             """, (entity_id, name, entity_type, color, description, short_info, json.dumps(attributes or {}), json.dumps(aliases or [])))
             conn.commit()
+        finally:
+            self._release_connection(conn)
+
+    def get_node_parent(self, node_id: str, taxonomic_rels: list) -> Optional[str]:
+        """Returns the ID of the current taxonomic parent of a node, if one exists."""
+        conn = self._get_connection()
+        try:
+            cursor = self._get_cursor(conn)
+            cursor.execute("""
+                SELECT source_id FROM relation_master 
+                WHERE target_id = %s AND UPPER(relation) = ANY(%s) 
+                LIMIT 1
+            """, (node_id, [r.upper() for r in taxonomic_rels]))
+            row = cursor.fetchone()
+            return row['source_id'] if row else None
+        finally:
+            self._release_connection(conn)
+
+    def node_has_parent(self, node_id: str, taxonomic_rels: list):
+        """Checks if a node already has an incoming taxonomic parent relation in the database."""
+        conn = self._get_connection()
+        try:
+            cursor = self._get_cursor(conn)
+            cursor.execute("""
+                SELECT 1 FROM relation_master 
+                WHERE target_id = %s AND UPPER(relation) = ANY(%s) 
+                LIMIT 1
+            """, (node_id, [r.upper() for r in taxonomic_rels]))
+            return cursor.fetchone() is not None
         finally:
             self._release_connection(conn)
 
@@ -449,6 +508,7 @@ class DatabaseManager:
         self.update_ontology("relation_types", data.get("relation_types", []), merge=merge_with_existing)
         self.update_ontology("allowed_triples", data.get("allowed_triples", []), merge=merge_with_existing)
         self.update_ontology("entity_colors", data.get("entity_colors", {}), merge=merge_with_existing)
-        self.update_ontology("extraction_rules", data.get("extraction_rules", []), merge=merge_with_existing)
+        self.update_ontology("extraction_rules", data.get("extraction_rules", []), merge=False)
+        self.update_ontology("extraction_examples", data.get("extraction_examples", []), merge=False)
         
         logger.info(f"Neon Postgres ontology {'merged' if merge_with_existing else 'seeded'} from base_ontology.json.")

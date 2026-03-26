@@ -12,9 +12,9 @@ services:
       - key: LLM_API_KEY
         sync: false
       - key: LLM_MODEL
-        value: "llama-3.3-70b-versatile"
+        value: "openai/gpt-oss-120b:free"
       - key: LLM_BASE_URL
-        value: "https://api.groq.com/openai/v1"
+        value: "https://openrouter.ai/api/v1"
       - key: UPLOAD_DIR
         value: "uploads"
       - key: PYTHON_VERSION

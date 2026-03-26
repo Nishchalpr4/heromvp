@@ -37,8 +37,36 @@ _TYPE_PREFIX: dict[str, str] = {
     "Program":              "prog",
     "Management":           "mgmt",
     "Competitors":          "comps",
+    "Strategy":             "strat",
+    "SupplyChain":          "sc",
+    "ManufacturingNetwork": "mn",
+    "FinancialReport":      "fin",
+    "MarketForecast":       "mf",
+    "ProductionInsight":    "pi"
 }
 
+
+_DEDUPE_MAP: dict[str, str] = {
+    "america": "united states",
+    "american": "united states",
+    "u s": "united states",
+    "us": "united states",
+    "nvidia": "nvidia corporation",
+    "graphics and compute": "graphics and compute processors",
+    "digital services": "services",
+    "consumer electronic": "consumer electronics",
+}
+
+def normalize_name(name: str) -> str:
+    """Canonical normalization for both ID generation and resolution."""
+    text = name.lower()
+    # Remove standard corporate suffixes
+    text = re.sub(r'\b(inc\.|inc|corp\.|corp|llc\.|llc|ag\.|ag|se\.|se|co\.|co|ltd\.|ltd|limited)\b', '', text)
+    text = re.sub(r'[^\w\s]', '', text)
+    text = re.sub(r'\s+', ' ', text).strip()
+    
+    # Apply deduplication map
+    return _DEDUPE_MAP.get(text, text)
 
 def _slugify(text: str) -> str:
     """Convert text to a lowercase slug: letters, digits, underscores only."""
@@ -49,9 +77,11 @@ def _slugify(text: str) -> str:
 
 
 def make_entity_id(entity_type: str, canonical_name: str) -> str:
-    """Generate a deterministic canonical ID like 'le_uno_minda_limited'."""
+    """Generate a deterministic canonical ID using the normalized name."""
     prefix = _TYPE_PREFIX.get(entity_type, "ent")
-    slug = _slugify(canonical_name)
+    # USE THE FULL NORMALIZATION including dedupe map
+    norm_name = normalize_name(canonical_name)
+    slug = _slugify(norm_name)
     return f"{prefix}_{slug}"
 
 
@@ -90,36 +120,24 @@ class GraphStore:
             cursor.execute("SELECT id, name, aliases FROM entity_master")
             for row in cursor.fetchall():
                 entity_id = row['id']
-                self._alias_index[self._normalize_name(row['name'])] = entity_id
+                self._alias_index[normalize_name(row['name'])] = entity_id
                 aliases = safe_json_loads(row['aliases'], default=[])
                 for alias in aliases:
-                    self._alias_index[self._normalize_name(alias)] = entity_id
+                    self._alias_index[normalize_name(alias)] = entity_id
         finally:
-            conn.close()
-
-    _DEDUPE_MAP: dict[str, str] = {
-        "america": "united states",
-        "american": "united states",
-        "u s": "united states",
-        "us": "united states",
-        "nvidia": "nvidia corporation",
-        "graphics and compute": "graphics and compute processors",
-    }
-
-    def _normalize_name(self, name: str) -> str:
-        text = name.lower()
-        # Remove standard corporate suffixes
-        text = re.sub(r'\b(inc\.|inc|corp\.|corp|llc\.|llc|ag\.|ag|se\.|se|co\.|co|ltd\.|ltd|limited)\b', '', text)
-        text = re.sub(r'[^\w\s]', '', text)
-        text = re.sub(r'\s+', ' ', text).strip()
-        
-        # Apply deduplication map
-        return self._DEDUPE_MAP.get(text, text)
+            self.db._release_connection(conn)
 
     def ingest_extraction(self, payload: ExtractionPayload, source_authority: int = 5, metadata: dict = {}):
         """Main entry point for processing LLM extraction results."""
+        # --- RELIABILITY: Self-healing pass ---
+        payload = self.guard.refine_payload(payload)
+        
         id_map = {} # temp_id -> canonical_id
         
+        # CATEGORY UNIFICATION: Local alias index to handle de-duplication within the same payload
+        # This prevents "Digital Services" and "Services" from being separate IDs if they appear in one batch.
+        local_alias_index = self._alias_index.copy()
+
         # Identify the root entity if possible from metadata
         subject_name = (metadata.get("company_name") or "").strip()
         subject_id = None
@@ -127,8 +145,14 @@ class GraphStore:
             subject_id = make_entity_id("LegalEntity", subject_name)
 
         for entity in payload.entities:
-            can_id = self.resolve_entity(entity)
+            can_id = self.resolve_entity(entity, local_alias_index)
             id_map[entity.temp_id] = can_id
+
+            # Update local index for subsequent entities in this same payload
+            name_slug = normalize_name(entity.canonical_name)
+            local_alias_index[name_slug] = can_id
+            for alias in entity.aliases:
+                local_alias_index[normalize_name(alias)] = can_id
 
             # Identify if this node represents the primary subject for anchoring
             is_subject = (can_id == subject_id)
@@ -175,23 +199,92 @@ class GraphStore:
                 source_authority=source_authority
             )
 
+        # --- STRICT SINGLE-PARENT TREE ENFORCEMENT ---
+        # 1. First Pass: Identify the primary taxonomic parent for each child node
+        # These relations define the core tree hierarchy where each node should have only ONE parent.
+        taxonomic_rels = [
+            "HAS_MANAGEMENT", "HAS_STRATEGY", "HAS_SUPPLY_CHAIN", "HAS_NETWORK", 
+            "HAS_PRODUCTS", "HAS_FINANCIALS", "HAS_MARKET_INSIGHT", "INCLUDES",
+            "HAS_PRODUCT_PORTFOLIO", "HAS_PRODUCT_DOMAIN", "HAS_PRODUCT_FAMILY", "HAS_PRODUCT_LINE", 
+            "HAS_ROLE", "HELD_BY", "COMPETES_WITH", "HAS_INITIATIVE", "LEADS", "REPORTED_BY"
+        ]
+        
+        node_has_parent = set() # target_ids that already have an incoming parent link
+        filtered_relations = []
+        
+        # Priority 1: Taxonomic Structure (Force a Tree)
         for rel in payload.relations:
+            rel_type_norm = rel.relation_type.upper().replace(" ", "_")
+            if rel_type_norm in taxonomic_rels:
+                src_id = id_map.get(rel.source_temp_id)
+                tgt_id = id_map.get(rel.target_temp_id)
+                if not src_id or not tgt_id: continue
+                
+                # REJECT SELF-LOOPS (e.g. Digital Services -> Digital Services)
+                if src_id == tgt_id:
+                    print(f"[HIERARCHY] Rejecting self-loop for {src_id}")
+                    continue
+                
+                # REJECT REDUNDANT PARENT (Only if it's a DIFFERENT parent)
+                # If src_id and tgt_id are the same as existing, let it through for a harmless UPSERT
+                existing_parent = self.db.get_node_parent(tgt_id, taxonomic_rels)
+                if (tgt_id in node_has_parent or existing_parent) and (existing_parent != src_id):
+                    print(f"[HIERARCHY] Rejecting DIFFERENT taxonomic link to {tgt_id} (Existing parent: {existing_parent}, New: {src_id})")
+                    continue
+                
+                node_has_parent.add(tgt_id)
+                filtered_relations.append(rel)
+
+        # Priority 2: Associative Structure (Market links, Geography, etc.)
+        for rel in payload.relations:
+            rel_type_norm = rel.relation_type.upper().replace(" ", "_")
+            if rel_type_norm not in taxonomic_rels:
+                src_id = id_map.get(rel.source_temp_id)
+                tgt_id = id_map.get(rel.target_temp_id)
+                if not src_id or not tgt_id: continue
+
+                # User Rule: "sub node only connect to main node above it ntg else"
+                # If the source (e.g. iPhone) already has a taxonomic parent (Family), reject outgoing Market links
+                if rel_type_norm == "APPLIES_TO_END_MARKET" and (src_id in node_has_parent or self.db.node_has_parent(src_id, taxonomic_rels)):
+                    print(f"[HIERARCHY] Rejecting redundant Market link from {src_id} -> {tgt_id}")
+                    continue
+                
+                # General Tree Safety: Only allow one parent for ANY node in this minimalist view
+                # General Tree Safety: Only allow one parent for ANY node in this minimalist view
+                existing_parent = self.db.get_node_parent(tgt_id, taxonomic_rels)
+                if (tgt_id in node_has_parent or existing_parent) and (existing_parent != src_id):
+                    # We allow multiple outgoing links for some things (like Company -> Capabilities), 
+                    # but the user said "sub node only connect to main node ABOVE it".
+                    # Let's be aggressive for now.
+                    if rel_type_norm in ["HAS_CAPABILITY", "OPERATES_IN", "COMPETES_WITH"]:
+                        filtered_relations.append(rel) # Allow multiple capabilities/geos
+                    else:
+                        print(f"[HIERARCHY] Rejecting second DIFFERENT incoming link to {tgt_id} ({rel_type_norm})")
+                        continue
+                else:
+                    node_has_parent.add(tgt_id)
+                    filtered_relations.append(rel)
+
+        # 2. Add filtered relations and assertions
+        for rel in filtered_relations:
             src_id = id_map.get(rel.source_temp_id)
             tgt_id = id_map.get(rel.target_temp_id)
-            
-            if src_id and tgt_id:
-                rel_id = make_relation_id(src_id, rel.relation_type, tgt_id)
+            if not src_id or not tgt_id: continue
+            rel_id = make_relation_id(src_id, rel.relation_type, tgt_id)
+            try:
                 self.db.add_relation(rel_id, src_id, tgt_id, rel.relation_type)
+            except Exception as e:
+                print(f"Error adding relation {rel_id}: {e}")
                 
-                self.db.add_assertion(
-                    subject_id=rel_id,
-                    subject_type='RELATION',
-                    source_text=rel.source_text or "",
-                    confidence=rel.confidence,
-                    document_name=payload.source_document_name,
-                    section_ref=rel.evidence[0].section_ref if rel.evidence else "extract",
-                    source_authority=source_authority
-                )
+            self.db.add_assertion(
+                subject_id=rel_id,
+                subject_type='RELATION',
+                source_text=rel.source_text or "",
+                confidence=rel.confidence,
+                document_name=payload.source_document_name,
+                section_ref=rel.evidence[0].section_ref if rel.evidence else "extract",
+                source_authority=source_authority
+            )
 
         for q in payload.quant_data:
             subj_id = id_map.get(q.subject_id)
@@ -216,19 +309,65 @@ class GraphStore:
                 )
 
         self._process_discoveries(payload.discoveries)
+        self._check_and_fix_roots()
         self._refresh_alias_index()
         return {"entities_processed": len(payload.entities), "relations_processed": len(payload.relations)}
 
-    def resolve_entity(self, entity: EntityCandidate) -> str:
-        name_slug = self._normalize_name(entity.canonical_name)
-        if name_slug in self._alias_index:
-            return self._alias_index[name_slug]
+    def _check_and_fix_roots(self):
+        """
+        ROOT RECONCILIATION: Ensures at least one LegalEntity is marked as 'is_root' 
+        if no metadata was provided. This drives the D3 tree visualization.
+        """
+        conn = self.db._get_connection()
+        try:
+            cursor = self.db._get_cursor(conn)
+            cursor.execute("SELECT id, name, type, attributes FROM entity_master")
+            nodes = cursor.fetchall()
             
-        for alias in entity.aliases:
-            alias_slug = self._normalize_name(alias)
-            if alias_slug in self._alias_index:
-                return self._alias_index[alias_slug]
+            root_exists = False
+            legal_entities = []
+            
+            for node in nodes:
+                attrs = safe_json_loads(node['attributes'], default={})
+                if attrs.get('is_root'):
+                    root_exists = True
+                    break
+                if node['type'] == 'LegalEntity':
+                    legal_entities.append(node)
+                    
+            if not root_exists and legal_entities:
+                # Heuristic: Pick the LegalEntity that has 'inc', 'corp', or 'root' in name
+                target_root = legal_entities[0]
+                for le in legal_entities:
+                    name_lower = le['name'].lower()
+                    if any(term in name_lower for term in ['inc', 'corp', 'limited']):
+                        target_root = le
+                        break
                 
+                attrs = safe_json_loads(target_root['attributes'], default={})
+                attrs['is_root'] = True
+                cursor.execute("UPDATE entity_master SET attributes = %s WHERE id = %s", 
+                               (json.dumps(attrs), target_root['id']))
+                conn.commit()
+                logger.info(f"[ROOT REPAIR] Tagged {target_root['name']} as root node.")
+        finally:
+            self.db._release_connection(conn)
+
+    def resolve_entity(self, entity: EntityCandidate, custom_index: dict = None) -> str:
+        name_slug = normalize_name(entity.canonical_name)
+        index = custom_index if custom_index is not None else self._alias_index
+
+        # 1. Direct match in alias index (handles cross-type resolution since slugs are shared)
+        if name_slug in index:
+            return index[name_slug]
+            
+        # 2. Alias match
+        for alias in entity.aliases:
+            alias_slug = normalize_name(alias)
+            if alias_slug in index:
+                return index[alias_slug]
+                
+        # 3. CATEGORY UNIFICATION: Cross-type resolution fallback (handled by index lookup if slug matches)
         return make_entity_id(entity.entity_type, entity.canonical_name)
 
     def _process_discoveries(self, discoveries):
@@ -286,13 +425,18 @@ class GraphStore:
 
     def reset(self):
         """Wipes graph data while PRESERVING ontology and learned discoveries."""
-        self.db.clear_graph_data()
-        self.db._init_db()  # Re-create the dropped graph tables
-        self.db.seed_ontology(merge_with_existing=True) 
-        self.ontology = self.db.get_ontology()
-        self.guard = LogicGuard(self.ontology)
-        self._alias_index = {}
-        self._refresh_alias_index()
+        try:
+            self.db.clear_graph_data()
+            # No need for _init_db() if clear_graph_data uses TRUNCATE
+            self.db.seed_ontology(merge_with_existing=True) 
+            self.ontology = self.db.get_ontology()
+            self.guard = LogicGuard(self.ontology)
+            self._alias_index = {}
+            self._refresh_alias_index()
+            logger.info("GraphStore reset successful.")
+        except Exception as e:
+            logger.error(f"GraphStore reset failed: {e}")
+            raise
 
     def get_extraction_log(self):
         """Fetches the history of assertions for the UI log."""
@@ -306,4 +450,4 @@ class GraphStore:
             """)
             return [dict(row) for row in cursor.fetchall()]
         finally:
-            conn.close()
+            self.db._release_connection(conn)

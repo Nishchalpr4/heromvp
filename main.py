@@ -7,9 +7,9 @@ Run:
   uvicorn main:app --reload --port 8000
 
 Environment variables:
-  LLM_API_KEY   — Your API key (Groq / OpenAI / etc.)
-  LLM_BASE_URL  — API base URL (default: https://api.groq.com/openai/v1)
-  LLM_MODEL     — Model name (default: llama-3.3-70b-versatile)
+  LLM_API_KEY   — Your API key (OpenRouter / OpenAI / etc.)
+  LLM_BASE_URL  — API base URL (default: https://openrouter.ai/api/v1)
+  LLM_MODEL     — Model name (default: openai/gpt-oss-120b:free)
 """
 
 from __future__ import annotations
@@ -27,7 +27,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 
 from graph_store import GraphStore
-from extraction import call_llm
+from extraction import extract_knowledge, call_llm
 from validators import LogicGuard # Moved to top-level
 
 # ────────────────────────────────────────────────────────────────────────
@@ -99,13 +99,11 @@ async def extract_entities(req: ExtractRequest):
         )
 
     try:
-        # Call LLM for extraction
-        payload = await call_llm(
+        # Call LLM for extraction via the full pipeline
+        payload = extract_knowledge(
             text=req.text,
             document_name=req.document_name,
-            section_ref=req.section_ref,
-            metadata=req.metadata,
-            custom_prompt=req.custom_prompt # Use custom prompt if provided
+            document_id=req.metadata.get("document_id", "user_input_doc")
         )
 
         # Ingest into graph store
@@ -170,8 +168,8 @@ async def health():
     return {
         "status": "ok",
         "llm_configured": bool(os.getenv("LLM_API_KEY")),
-        "llm_model": os.getenv("LLM_MODEL", "llama-3.3-70b-versatile"),
-        "llm_base_url": os.getenv("LLM_BASE_URL", "https://api.groq.com/openai/v1"),
+        "llm_model": os.getenv("LLM_MODEL", "openai/gpt-oss-120b:free"),
+        "llm_base_url": os.getenv("LLM_BASE_URL", "https://openrouter.ai/api/v1"),
     }
 
 @app.get("/api/ontology")

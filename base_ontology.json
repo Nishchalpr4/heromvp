@@ -24,364 +24,65 @@
         "Competitors",
         "ProductPortfolio",
         "Market",
-        "Manufacturer"
+        "Manufacturer",
+        "Strategy",
+        "SupplyChain",
+        "ManufacturingNetwork",
+        "FinancialReport",
+        "MarketForecast",
+        "ProductionInsight",
+        "ServicePortfolio"
     ],
     "relation_types": [
         "HAS_MANAGEMENT",
-        "HAS_COMPETITORS",
-        "HAS_COMPETITOR",
-        "PARENT_OF",
-        "SUBSIDIARY_OF",
-        "JV_WITH",
-        "ASSOCIATE_OF",
-        "ACQUIRED_ENTITY",
-        "ACQUIRED_STAKE_IN",
-        "LICENSES_TECH_FROM",
-        "PARTNERS_WITH",
+        "HAS_STRATEGY",
+        "HAS_SUPPLY_CHAIN",
+        "HAS_NETWORK",
+        "HAS_PRODUCTS",
+        "HAS_FINANCIALS",
+        "HAS_MARKET_INSIGHT",
         "COMPETES_WITH",
-        "HAS_BUSINESS_UNIT",
-        "PART_OF_BUSINESS_UNIT",
-        "PART_OF",
         "HAS_PRODUCT_DOMAIN",
         "HAS_PRODUCT_FAMILY",
         "HAS_PRODUCT_LINE",
-        "BELONGS_TO_DOMAIN",
-        "BELONGS_TO_FAMILY",
-        "APPLIES_TO_END_MARKET",
-        "SERVES_CHANNEL",
         "LOCATED_IN",
         "OPERATES_IN",
-        "OWNS_SITE",
-        "OPERATES_SITE",
+        "INCLUDES",
+        "LEADS",
         "HAS_ROLE",
         "HELD_BY",
-        "MANAGEMENT_OF",
-        "COMPETITORS_OF",
-        "LEADS",
-        "HAS_CAPABILITY",
-        "OPERATES_IN_MARKET",
-        "DEVELOPS_TECHNOLOGY",
-        "USES_TECHNOLOGY",
-        "BELONGS_TO_INDUSTRY",
-        "BELONGS_TO_SECTOR",
-        "RUNS_PROGRAM",
-        "PROGRAM_LOCATED_IN",
-        "PROGRAM_FOR_PRODUCT_LINE",
-        "MAPPED_TO",
-        "REPORTED_BY",
-        "HAS_PRODUCT_PORTFOLIO",
-        "HAS_INITIATIVE",
-        "WORKS_WITH",
-        "SUCCEEDS",
-        "ANALYST_OF",
-        "REPORTS_ON",
-        "PARTNER_OF",
+        "MANUFACTURES_FOR",
+        "APPLIES_TO_END_MARKET",
         "ANALYZES",
-        "DRIVEN_BY",
+        "ANALYST_OF",
+        "REPORTED_BY",
         "ASSOCIATED_WITH",
-        "MANUFACTURES_FOR"
+        "MAPPED_TO",
+        "HAS_INITIATIVE",
+        "HAS_SERVICE_PORTFOLIO"
     ],
     "allowed_triples": [
-        {
-            "source": "LegalEntity",
-            "relation": "PARENT_OF",
-            "target": "LegalEntity"
-        },
-        {
-            "source": "LegalEntity",
-            "relation": "SUBSIDIARY_OF",
-            "target": "LegalEntity"
-        },
-        {
-            "source": "LegalEntity",
-            "relation": "JV_WITH",
-            "target": "LegalEntity"
-        },
-        {
-            "source": "LegalEntity",
-            "relation": "PARTNERS_WITH",
-            "target": "LegalEntity"
-        },
-        {
-            "source": "LegalEntity",
-            "relation": "PARTNER_OF",
-            "target": "LegalEntity"
-        },
-        {
-            "source": "LegalEntity",
-            "relation": "COMPETES_WITH",
-            "target": "LegalEntity"
-        },
-        {
-            "source": "LegalEntity",
-            "relation": "HAS_BUSINESS_UNIT",
-            "target": "BusinessUnit"
-        },
-        {
-            "source": "BusinessUnit",
-            "relation": "HAS_BUSINESS_UNIT",
-            "target": "BusinessUnit"
-        },
-        {
-            "source": "LegalEntity",
-            "relation": "HAS_PRODUCT_PORTFOLIO",
-            "target": "ProductPortfolio"
-        },
-        {
-            "source": "ProductPortfolio",
-            "relation": "HAS_PRODUCT_DOMAIN",
-            "target": "ProductDomain"
-        },
-        {
-            "source": "ProductDomain",
-            "relation": "HAS_PRODUCT_FAMILY",
-            "target": "ProductFamily"
-        },
-        {
-            "source": "ProductFamily",
-            "relation": "HAS_PRODUCT_LINE",
-            "target": "ProductLine"
-        },
-        {
-            "source": "Geography",
-            "relation": "PART_OF",
-            "target": "Geography"
-        },
-        {
-            "source": "Site",
-            "relation": "LOCATED_IN",
-            "target": "Geography"
-        },
-        {
-            "source": "LegalEntity",
-            "relation": "OWNS_SITE",
-            "target": "Site"
-        },
-        {
-            "source": "Brand",
-            "relation": "PART_OF",
-            "target": "LegalEntity"
-        },
-        {
-            "source": "Initiative",
-            "relation": "PART_OF",
-            "target": "LegalEntity"
-        },
-        {
-            "source": "Financial",
-            "relation": "REPORTED_BY",
-            "target": "LegalEntity"
-        },
-        {
-            "source": "Financial",
-            "relation": "PART_OF",
-            "target": "Initiative"
-        },
-        {
-            "source": "BusinessUnit",
-            "relation": "MAPPED_TO",
-            "target": "LegalEntity"
-        },
-        {
-            "source": "ProductLine",
-            "relation": "APPLIES_TO_END_MARKET",
-            "target": "EndMarket"
-        },
-        {
-            "source": "LegalEntity",
-            "relation": "BELONGS_TO_SECTOR",
-            "target": "Sector"
-        },
-        {
-            "source": "LegalEntity",
-            "relation": "BELONGS_TO_INDUSTRY",
-            "target": "Industry"
-        },
-        {
-            "source": "BusinessUnit",
-            "relation": "BELONGS_TO_SECTOR",
-            "target": "Sector"
-        },
-        {
-            "source": "BusinessUnit",
-            "relation": "BELONGS_TO_INDUSTRY",
-            "target": "Industry"
-        },
-        {
-            "source": "LegalEntity",
-            "relation": "OPERATES_IN",
-            "target": "EndMarket"
-        },
-        {
-            "source": "BusinessUnit",
-            "relation": "OPERATES_IN",
-            "target": "EndMarket"
-        },
-        {
-            "source": "LegalEntity",
-            "relation": "HAS_MANAGEMENT",
-            "target": "Management"
-        },
-        {
-            "source": "LegalEntity",
-            "relation": "HAS_COMPETITORS",
-            "target": "Competitors"
-        },
-        {
-            "source": "Competitors",
-            "relation": "HAS_COMPETITOR",
-            "target": "LegalEntity"
-        },
-        {
-            "source": "Management",
-            "relation": "HAS_ROLE",
-            "target": "Role"
-        },
-        {
-            "source": "Role",
-            "relation": "HELD_BY",
-            "target": "Person"
-        },
-        {
-            "source": "Role",
-            "relation": "PART_OF",
-            "target": "Management"
-        },
-        {
-            "source": "LegalEntity",
-            "relation": "HAS_EMPLOYEE",
-            "target": "Person"
-        },
-        {
-            "source": "Brand",
-            "relation": "PART_OF",
-            "target": "ProductLine"
-        },
-        {
-            "source": "LegalEntity",
-            "relation": "HAS_CAPABILITY",
-            "target": "Capability"
-        },
-        {
-            "source": "BusinessUnit",
-            "relation": "HAS_CAPABILITY",
-            "target": "Capability"
-        },
-        {
-            "source": "LegalEntity",
-            "relation": "USES_TECHNOLOGY",
-            "target": "Technology"
-        },
-        {
-            "source": "LegalEntity",
-            "relation": "DEVELOPS_TECHNOLOGY",
-            "target": "Technology"
-        },
-        {
-            "source": "ProductLine",
-            "relation": "USES_TECHNOLOGY",
-            "target": "Technology"
-        },
-        {
-            "source": "LegalEntity",
-            "relation": "HAS_INITIATIVE",
-            "target": "Initiative"
-        },
-        {
-            "source": "Initiative",
-            "relation": "LEADS",
-            "target": "Person"
-        },
-        {
-            "source": "Initiative",
-            "relation": "OPERATES_IN",
-            "target": "Geography"
-        },
-        {
-            "source": "Program",
-            "relation": "PART_OF",
-            "target": "Initiative"
-        },
-        {
-            "source": "LegalEntity",
-            "relation": "WORKS_WITH",
-            "target": "LegalEntity"
-        },
-        {
-            "source": "Person",
-            "relation": "SUCCEEDS",
-            "target": "Person"
-        },
-        {
-            "source": "Person",
-            "relation": "PARTNERS_WITH",
-            "target": "LegalEntity"
-        },
-        {
-            "source": "Person",
-            "relation": "ASSOCIATED_WITH",
-            "target": "Brand"
-        },
-        {
-            "source": "Person",
-            "relation": "ASSOCIATED_WITH",
-            "target": "ProductLine"
-        },
-        {
-            "source": "LegalEntity",
-            "relation": "OPERATES_IN_MARKET",
-            "target": "Market"
-        },
-        {
-            "source": "Market",
-            "relation": "PART_OF",
-            "target": "LegalEntity"
-        },
-        {
-            "source": "LegalEntity",
-            "relation": "PART_OF",
-            "target": "Market"
-        },
-        {
-            "source": "LegalEntity",
-            "relation": "OPERATES_IN",
-            "target": "Geography"
-        },
-        {
-            "source": "LegalEntity",
-            "relation": "LOCATED_IN",
-            "target": "Geography"
-        },
-        {
-            "source": "LegalEntity",
-            "relation": "ANALYST_OF",
-            "target": "LegalEntity"
-        },
-        {
-            "source": "LegalEntity",
-            "relation": "REPORTS_ON",
-            "target": "LegalEntity"
-        },
-        {
-            "source": "LegalEntity",
-            "relation": "ANALYZES",
-            "target": "Market"
-        },
-        {
-            "source": "Market",
-            "relation": "DRIVEN_BY",
-            "target": "Geography"
-        },
-        {
-            "source": "Market",
-            "relation": "DRIVEN_BY",
-            "target": "LegalEntity"
-        },
-        {
-            "source": "Manufacturer",
-            "relation": "MANUFACTURES_FOR",
-            "target": "LegalEntity"
-        }
+        { "source": "LegalEntity", "relation": "HAS_MANAGEMENT", "target": "Management" },
+        { "source": "Management", "relation": "HAS_MANAGEMENT", "target": "Person" },
+        { "source": "LegalEntity", "relation": "HAS_STRATEGY", "target": "Strategy" },
+        { "source": "Strategy", "relation": "LEADS", "target": "Person" },
+        { "source": "Strategy", "relation": "OPERATES_IN", "target": "Geography" },
+        { "source": "LegalEntity", "relation": "HAS_SUPPLY_CHAIN", "target": "SupplyChain" },
+        { "source": "SupplyChain", "relation": "HAS_NETWORK", "target": "ManufacturingNetwork" },
+        { "source": "ManufacturingNetwork", "relation": "LOCATED_IN", "target": "Geography" },
+        { "source": "LegalEntity", "relation": "HAS_PRODUCTS", "target": "ProductLine" },
+        { "source": "LegalEntity", "relation": "HAS_FINANCIALS", "target": "FinancialReport" },
+        { "source": "LegalEntity", "relation": "COMPETES_WITH", "target": "LegalEntity" },
+        { "source": "LegalEntity", "relation": "HAS_MARKET_INSIGHT", "target": "MarketForecast" },
+        { "source": "Geography", "relation": "INCLUDES", "target": "Geography" },
+        { "source": "ProductionInsight", "relation": "REPORTED_BY", "target": "LegalEntity" },
+        { "source": "ProductionInsight", "relation": "LOCATED_IN", "target": "Geography" },
+        { "source": "Manufacturer", "relation": "MANUFACTURES_FOR", "target": "LegalEntity" },
+        { "source": "Manufacturer", "relation": "LOCATED_IN", "target": "Geography" },
+        { "source": "LegalEntity", "relation": "HAS_INITIATIVE", "target": "Initiative" },
+        { "source": "Initiative", "relation": "OPERATES_IN", "target": "Geography" },
+        { "source": "LegalEntity", "relation": "HAS_SERVICE_PORTFOLIO", "target": "ServicePortfolio" },
+        { "source": "ServicePortfolio", "relation": "HAS_PRODUCTS", "target": "ProductLine" }
     ],
     "entity_colors": {
         "LegalEntity": "#4A90D9",
@@ -408,20 +109,43 @@
         "Competitors": "#C0392B",
         "ProductPortfolio": "#3b82f6",
         "Market": "#9333ea",
-        "Manufacturer": "#f43f5e"
+        "Manufacturer": "#f43f5e",
+        "Strategy": "#9c27b0",
+        "SupplyChain": "#3f51b5",
+        "ManufacturingNetwork": "#673ab7",
+        "FinancialReport": "#4caf50",
+        "MarketForecast": "#ff9800",
+        "ProductionInsight": "#e91e63",
+        "ServicePortfolio": "#9b59b6"
     },
     "extraction_rules": [
-        "1. ROOT ENTITY: Identify the primary company (e.g., Nike) as LegalEntity (ROOT). EVERY OTHER NODE MUST HAVE A PATH TO THIS ROOT.",
-        "2. CONTEXTUAL ATTRIBUTES (CRITICAL): For EVERY entity, you MUST include a 'context' or 'role' attribute. Naming the node is not enough. We must know WHY it exists.",
-        "3. EXTERNAL ORGANIZATIONS: All external companies (Analyst firms, Banks, Partners, JVs, Competitors) MUST be categorized as LegalEntity.",
-        "4. NO ORPHANS / NO ISLANDS (ZERO TOLERANCE): Every single node MUST connect to ROOT directly or indirectly. If no direct relation exists in the text, you MUST infer one (e.g., [Company] -> OPERATES_IN_MARKET -> [Market], [Company] -> STRATEGIC_CONTEXT -> [Geography]). NEVER leave a node floating.",
-        "5. HIERARCHIES (MULTI-HOP ENFORCEMENT): Leaders and managers MUST be grouped using the full chain: [Company] -> HAS_MANAGEMENT -> [Management] -> HAS_ROLE -> [Role: CEO] -> HELD_BY -> [Person]. NEVER link Person directly to Company.",
-        "6. NO BYPASS (CRITICAL): Never link a Person or Brand directly to a Company if a hierarchical path exists. NO SHORTCUTS ALLOWED.",
-        "7. MARKET ANCHORING: Every 'Market' node MUST connect back to the ROOT Subject Company via 'OPERATES_IN_MARKET' or 'PART_OF'. NEVER leave Market nodes floating.",
-        "8. SUCCESSION: If one Person replaces another, use [Person A] -> SUCCEEDS -> [Person B].",
-        "9. GEOGRAPHY: Region -> Country -> Site hierarchy. Anchor the Company to the Region.",
-        "10. ANALYSTS & PARTNERS: External firms (Goldman Sachs) MUST connect to the Subject Company via ANALYST_OF (Firm -> Subject).",
-        "11. NO ISLANDS: Every node MUST have at least one incoming or outgoing edge that eventually leads to the ROOT. If missing, create 'Strategic Context' or 'Market Context' nodes.",
-        "12. QUANT DATA: All financial metrics belong in the quant_data list of an entity, NOT as separate nodes."
+        "STRICT ROOT: Every entity MUST have a path to the TIER 0 ROOT LegalEntity.",
+        "SPINE LINKS: Use HAS_MANAGEMENT, HAS_STRATEGY, HAS_SUPPLY_CHAIN, HAS_PRODUCTS, HAS_FINANCIALS, COMPETES_WITH, HAS_MARKET_INSIGHT, HAS_PRODUCT_PORTFOLIO, HAS_SERVICE_PORTFOLIO.",
+        "BRIDGE CONTAINERS: Group sibling entities under logical containers like Management, SupplyChain, ProductPortfolio, ServicePortfolio to avoid root-level clutter.",
+        "SERVICES vs PRODUCTS: Services (iCloud, apps) go to ServicePortfolio. Physical electronics (iPhone, Mac) go under ProductPortfolio.",
+        "GEOSPATIAL NESTING: Regions MUST use INCLUDES to point to Countries.",
+        "NO ORPHANS: Every node MUST lead back to the ROOT. Each node should have exactly one primary parent in the taxonomic spine.",
+        "FACT RECALL: Extract all mentioned Brands, Competitors, and Market Forecasts without exception.",
+        "EVIDENCE: Every relation MUST have verbatim source_text quote.",
+        "NUMERICS: Use JSON numbers for quant_data values."
+    ],
+    "extraction_examples": [
+      {
+        "input": "In January 2024, Nike Inc. announced it would expand manufacturing in Southeast Asia. CEO John Donahoe lead the deal.",
+        "thought_process": "Established Nike as TIER 0. Created 'Nike Management' container under Nike. Linked CEO John Donahoe to the Management node. Region nested under Strategy. All nodes trace to Nike via taxonomic links.",
+        "output_json": {
+          "thought_process": "Established Nike as TIER 0. Created 'Nike Management' container under Nike. Linked CEO John Donahoe to the Management node...",
+          "entities": [
+            { "temp_id": "e1", "canonical_name": "Nike Inc.", "entity_type": "LegalEntity", "short_info": "Root Company" },
+            { "temp_id": "e_mgmt", "canonical_name": "Nike Management", "entity_type": "Management", "short_info": "Executive Team" },
+            { "temp_id": "e2", "canonical_name": "John Donahoe", "entity_type": "Person", "short_info": "CEO" }
+          ],
+          "relations": [
+            { "source_temp_id": "e1", "relation_type": "HAS_MANAGEMENT", "target_temp_id": "e_mgmt", "source_text": "Nike CEO John Donahoe", "confidence": 1.0 },
+            { "source_temp_id": "e_mgmt", "relation_type": "HAS_MANAGEMENT", "target_temp_id": "e2", "source_text": "CEO John Donahoe", "confidence": 1.0 }
+          ]
+        },
+        "ascii_tree": "[Company] Nike Inc.\n ├── HAS_MANAGEMENT → [Management] Nike Management\n │                       ├── HAS_MANAGEMENT → [Person] John Donahoe (CEO)\n │                       └── HAS_MANAGEMENT → [Person] Andy Campion (COO)\n │\n ├── HAS_PRODUCT_PORTFOLIO → [ProductPortfolio] Nike Products\n │                       ├── HAS_PRODUCTS → [ProductLine] Air Jordan\n │                       └── HAS_PRODUCTS → [ProductLine] Nike Air Max\n │\n ├── HAS_SUPPLY_CHAIN → [SupplyChain] Nike Supply Chain\n │                       ├── HAS_NETWORK → [ManufacturingNetwork] Vietnam Network\n │                       │                   └── LOCATED_IN → [Geography] Vietnam\n │                       └── HAS_NETWORK → [ManufacturingNetwork] Indonesia Network\n │                                           └── LOCATED_IN → [Geography] Indonesia"
+      }
     ]
 }

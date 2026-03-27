@@ -286,6 +286,14 @@ class LogicGuard:
                 src_type = norm(src_ent.entity_type)
                 tgt_type = norm(tgt_ent.entity_type)
                 
+                # TAXONOMIC FLIP: If Domain is a CHILD of Family/Portfolio, flip it
+                if src_type in pf_types and tgt_type in pd_types:
+                    logger.info(f"Taxonomic Flip: Swapping {src_ent.canonical_name} and {tgt_ent.canonical_name}")
+                    r.source_temp_id, r.target_temp_id = tgt_ent.temp_id, src_ent.temp_id
+                    r.relation_type = "HAS_PORTFOLIO"
+                    # Update local types for subsequent logic
+                    src_type, tgt_type = tgt_type, src_type
+
                 # If Domain/Portfolio -> Line/Product, and Family exists, re-route to Domain -> Family -> Line
                 if src_type in (pd_types | {"legalentity"}) and tgt_type in pl_types:
                     if str(r.source_temp_id) != default_family:

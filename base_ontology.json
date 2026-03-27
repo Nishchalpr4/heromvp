@@ -21,7 +21,7 @@
         "Financial",
         "Program",
         "Management",
-        "Competitors",
+        "CompetitorNetwork",
         "ProductPortfolio",
         "Market",
         "Manufacturer",
@@ -59,8 +59,27 @@
         "ASSOCIATED_WITH",
         "MAPPED_TO",
         "HAS_INITIATIVE",
-        "HAS_SERVICE_PORTFOLIO"
+        "HAS_SERVICE_PORTFOLIO",
+        "HAS_PRODUCTION_INSIGHT",
+        "HAS_COMPETITOR_NETWORK"
     ],
+    "structural_metadata": {
+        "bridge_rules": {
+            "Product": { "type": "ProductPortfolio", "rel": "HAS_PRODUCTS", "bridge_rel": "HAS_PRODUCT_PORTFOLIO", "suffix": "Portfolio" },
+            "ProductLine": { "type": "ProductPortfolio", "rel": "HAS_PRODUCTS", "bridge_rel": "HAS_PRODUCT_PORTFOLIO", "suffix": "Portfolio" },
+            "Service": { "type": "ServicePortfolio", "rel": "HAS_PRODUCTS", "bridge_rel": "HAS_SERVICE_PORTFOLIO", "suffix": "Service Portfolio" },
+            "Competitors": { "type": "CompetitorNetwork", "rel": "COMPETES_WITH", "bridge_rel": "HAS_COMPETITOR_NETWORK", "suffix": "Competitor Network" },
+            "Person": { "type": "Management", "rel": "HAS_MANAGEMENT", "bridge_rel": "HAS_MANAGEMENT", "suffix": "Management" },
+            "Geography": { "type": "ManufacturingNetwork", "rel": "LOCATED_IN", "bridge_rel": "HAS_SUPPLY_CHAIN", "suffix": "Manufacturing Hubs" }
+        },
+        "taxonomic_rels": [
+            "HAS_MANAGEMENT", "HAS_STRATEGY", "HAS_SUPPLY_CHAIN", "HAS_NETWORK", 
+            "HAS_PRODUCTS", "HAS_PRODUCT", "HAS_FINANCIALS", "HAS_MARKET_INSIGHT", "INCLUDES",
+            "HAS_PRODUCT_PORTFOLIO", "HAS_SERVICE_PORTFOLIO", "HAS_PRODUCT_DOMAIN", 
+            "HAS_PRODUCT_FAMILY", "HAS_PRODUCT_LINE", "HAS_PRODUCTION_INSIGHT", 
+            "HAS_BUSINESS_UNIT", "HAS_COMPETITOR_NETWORK", "REPORTED_BY", "OPERATES_IN"
+        ]
+    },
     "allowed_triples": [
         { "source": "LegalEntity", "relation": "HAS_MANAGEMENT", "target": "Management" },
         { "source": "Management", "relation": "HAS_MANAGEMENT", "target": "Person" },
@@ -85,16 +104,16 @@
         { "source": "ServicePortfolio", "relation": "HAS_PRODUCTS", "target": "ProductLine" }
     ],
     "entity_colors": {
-        "LegalEntity": "#4A90D9",
-        "BusinessUnit": "#27AE60",
+        "LegalEntity": "#3b82f6",
+        "BusinessUnit": "#10b981",
         "Sector": "#8E44AD",
         "Industry": "#2C3E50",
         "SubIndustry": "#16A085",
         "EndMarket": "#D35400",
         "Channel": "#C0392B",
-        "ProductDomain": "#2980B9",
+        "ProductDomain": "#8b5cf6",
         "ProductFamily": "#3498DB",
-        "ProductLine": "#1ABC9C",
+        "ProductLine": "#f59e0b",
         "Site": "#E74C3C",
         "Geography": "#F39C12",
         "Person": "#9B59B6",
@@ -106,8 +125,8 @@
         "Financial": "#4CAF50",
         "Program": "#607D8B",
         "Management": "#FFD700",
-        "Competitors": "#C0392B",
-        "ProductPortfolio": "#3b82f6",
+        "Competitors": "#ef4444",
+        "ProductPortfolio": "#ef4444",
         "Market": "#9333ea",
         "Manufacturer": "#f43f5e",
         "Strategy": "#9c27b0",
@@ -116,36 +135,43 @@
         "FinancialReport": "#4caf50",
         "MarketForecast": "#ff9800",
         "ProductionInsight": "#e91e63",
-        "ServicePortfolio": "#9b59b6"
+        "ServicePortfolio": "#06b6d4"
     },
     "extraction_rules": [
-        "STRICT ROOT: Every entity MUST have a path to the TIER 0 ROOT LegalEntity.",
-        "SPINE LINKS: Use HAS_MANAGEMENT, HAS_STRATEGY, HAS_SUPPLY_CHAIN, HAS_PRODUCTS, HAS_FINANCIALS, COMPETES_WITH, HAS_MARKET_INSIGHT, HAS_PRODUCT_PORTFOLIO, HAS_SERVICE_PORTFOLIO.",
-        "BRIDGE CONTAINERS: Group sibling entities under logical containers like Management, SupplyChain, ProductPortfolio, ServicePortfolio to avoid root-level clutter.",
-        "SERVICES vs PRODUCTS: Services (iCloud, apps) go to ServicePortfolio. Physical electronics (iPhone, Mac) go under ProductPortfolio.",
-        "GEOSPATIAL NESTING: Regions MUST use INCLUDES to point to Countries.",
-        "NO ORPHANS: Every node MUST lead back to the ROOT. Each node should have exactly one primary parent in the taxonomic spine.",
-        "FACT RECALL: Extract all mentioned Brands, Competitors, and Market Forecasts without exception.",
-        "EVIDENCE: Every relation MUST have verbatim source_text quote.",
-        "NUMERICS: Use JSON numbers for quant_data values."
+        "STRICT TAXONOMY: Every entity MUST have a path to the TIER 0 ROOT LegalEntity.",
+        "NESTING RULE: Products (iPhone, Mac) MUST NOT connect directly to the Root if a ProductDomain (consumer electronics) or BusinessUnit (Services) exists. Nest them inside.",
+        "BRIDGE NODES: If related products are mentioned but no explicit group name is given, use or CREATE a logical bridge node like 'ProductPortfolio' or 'Digital Products' to group them.",
+        "SPINE LINKS: Use HAS_PRODUCT_DOMAIN -> INCLUDES -> ProductLine or HAS_SERVICE_PORTFOLIO -> HAS_PRODUCTS -> ProductLine.",
+        "NO ORPHANS: Every node MUST lead back to the ROOT. Prioritize the taxonomic chain over associative links.",
+        "EVIDENCE: Every relation MUST have verbatim source_text quote."
     ],
     "extraction_examples": [
       {
-        "input": "In January 2024, Nike Inc. announced it would expand manufacturing in Southeast Asia. CEO John Donahoe lead the deal.",
-        "thought_process": "Established Nike as TIER 0. Created 'Nike Management' container under Nike. Linked CEO John Donahoe to the Management node. Region nested under Strategy. All nodes trace to Nike via taxonomic links.",
+        "input": "Apple Inc. sells iPhones and Macs. It also provides iCloud and Apple Music services.",
+        "thought_process": "Created Apple Inc as Root. Created 'Consumer Electronics' domain. Grouped iPhone/Mac under 'Digital Products' bridge node inside the domain. Grouped iCloud/Music under 'Services' bridge node.",
         "output_json": {
-          "thought_process": "Established Nike as TIER 0. Created 'Nike Management' container under Nike. Linked CEO John Donahoe to the Management node...",
           "entities": [
-            { "temp_id": "e1", "canonical_name": "Nike Inc.", "entity_type": "LegalEntity", "short_info": "Root Company" },
-            { "temp_id": "e_mgmt", "canonical_name": "Nike Management", "entity_type": "Management", "short_info": "Executive Team" },
-            { "temp_id": "e2", "canonical_name": "John Donahoe", "entity_type": "Person", "short_info": "CEO" }
+            { "temp_id": "e1", "canonical_name": "Apple Inc.", "entity_type": "LegalEntity" },
+            { "temp_id": "e_dom", "canonical_name": "Consumer Electronics", "entity_type": "ProductDomain" },
+            { "temp_id": "e_bridge1", "canonical_name": "Digital Products", "entity_type": "ProductPortfolio" },
+            { "temp_id": "e2", "canonical_name": "iPhone", "entity_type": "ProductLine" },
+            { "temp_id": "e_svc", "canonical_name": "Services", "entity_type": "BusinessUnit" },
+            { "temp_id": "e3", "canonical_name": "iCloud", "entity_type": "ProductLine" }
           ],
           "relations": [
-            { "source_temp_id": "e1", "relation_type": "HAS_MANAGEMENT", "target_temp_id": "e_mgmt", "source_text": "Nike CEO John Donahoe", "confidence": 1.0 },
-            { "source_temp_id": "e_mgmt", "relation_type": "HAS_MANAGEMENT", "target_temp_id": "e2", "source_text": "CEO John Donahoe", "confidence": 1.0 }
+            { "source_temp_id": "e1", "relation_type": "HAS_PRODUCT_DOMAIN", "target_temp_id": "e_dom" },
+            { "source_temp_id": "e_dom", "relation_type": "INCLUDES", "target_temp_id": "e_bridge1" },
+            { "source_temp_id": "e_bridge1", "relation_type": "HAS_PRODUCTS", "target_temp_id": "e2" },
+            { "source_temp_id": "e1", "relation_type": "HAS_BUSINESS_UNIT", "target_temp_id": "e_svc" },
+            { "source_temp_id": "e_svc", "relation_type": "HAS_PRODUCTS", "target_temp_id": "e3" }
           ]
-        },
-        "ascii_tree": "[Company] Nike Inc.\n ├── HAS_MANAGEMENT → [Management] Nike Management\n │                       ├── HAS_MANAGEMENT → [Person] John Donahoe (CEO)\n │                       └── HAS_MANAGEMENT → [Person] Andy Campion (COO)\n │\n ├── HAS_PRODUCT_PORTFOLIO → [ProductPortfolio] Nike Products\n │                       ├── HAS_PRODUCTS → [ProductLine] Air Jordan\n │                       └── HAS_PRODUCTS → [ProductLine] Nike Air Max\n │\n ├── HAS_SUPPLY_CHAIN → [SupplyChain] Nike Supply Chain\n │                       ├── HAS_NETWORK → [ManufacturingNetwork] Vietnam Network\n │                       │                   └── LOCATED_IN → [Geography] Vietnam\n │                       └── HAS_NETWORK → [ManufacturingNetwork] Indonesia Network\n │                                           └── LOCATED_IN → [Geography] Indonesia"
+        }
       }
-    ]
+    ],
+    "multi_stage_prompts": {
+        "stage_1_entities": "### STAGE 1: ENTITY EXTRACTION (HIGH RECALL)\nExtract ALL entities. Include Companies, People, Products, Product Domains, and Business Units.\nALSO: If the text mentions management or competition, CREATE bridge nodes: 'Management' (e.g., 'Nike Management') and 'Competitor Network' (e.g., 'Nike Competitors').\n\nOutput format:\n[\n  { \"name\": \"...\", \"type\": \"...\", \"aliases\": [...], \"evidence\": \"...\" }\n]",
+        "stage_2_resolution": "### STAGE 2: ENTITY RESOLUTION\nGroup entities referring to the same real-world entity. Assign unique entity_id (E1, E2, etc.).\nSTRICT: Ensure bridge nodes (ProductPortfolio, Management, CompetitorNetwork) are preserved.\n\nOutput format:\n[\n  { \"entity_id\": \"E1\", \"canonical_name\": \"...\", \"type\": \"...\", \"aliases\": [...] }\n]",
+        "stage_3_relations": "### STAGE 3: RELATION EXTRACTION (STRICT HIERARCHY)\nAssign relations using entity_ids. \nSTRICT: Minimal direct links to the ROOT Company. Use Bridge Nodes.\n\nSTRICT NESTING RULES:\n1. People (CEO, COO) MUST be connected to the 'Management' bridge node, NOT the Root Company.\n2. Products (iPhone, Mac) MUST be connected to a ProductDomain or ProductPortfolio bridge node, NOT the Root Company.\n3. Competitors (Adidas, Puma) MUST be connected to the 'Competitor Network' bridge node, NOT the Root Company.\n4. Hierarchy Path: Root Company -> HAS_MANAGEMENT -> Management -> HAS_MANAGEMENT -> Person.\n5. Hierarchy Path: Root Company -> HAS_COMPETITOR_NETWORK -> Competitor Network -> COMPETES_WITH -> LegalEntity (Competitor).\n6. Hierarchy Path: Root Company -> HAS_PRODUCT_DOMAIN -> ProductDomain -> INCLUDES -> ProductLine.\n\nEVIDENCE: EVERY relation MUST include a verbatim quote from the text in the 'evidence' field. NO NULLS.\n\nAllowed Relations: {relations}\n\nOutput format:\n[\n  { \"source_id\": \"E1\", \"relation\": \"...\", \"target_id\": \"E2\", \"evidence\": \"...\", \"confidence\": 0-1 }\n]",
+        "stage_4_facts": "### STAGE 4: ATTRIBUTE / FACT EXTRACTION\nExtract quantitative data for resolved entities.\nSTRICT: Skip if no number exists. DO NOT use '0' as placeholder.\n\nOutput format:\n[\n  { \"entity_id\": \"E1\", \"attribute\": \"...\", \"value\": \"...\", \"unit\": \"...\", \"time_context\": \"...\", \"evidence\": \"...\" }\n]"
+    }
 }

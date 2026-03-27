@@ -19,7 +19,7 @@ import traceback
 from typing import Optional
 from dotenv import load_dotenv
 
-load_dotenv()  # Load .env before other imports that read env vars
+load_dotenv(override=True)  # Load .env with override to pick up changes on reload
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.staticfiles import StaticFiles
@@ -27,7 +27,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
 
 from graph_store import GraphStore
-from extraction import extract_knowledge, call_llm
+from extraction import extract_knowledge, extract_knowledge_multistage, call_llm
 from validators import LogicGuard # Moved to top-level
 
 # ────────────────────────────────────────────────────────────────────────
@@ -99,8 +99,8 @@ async def extract_entities(req: ExtractRequest):
         )
 
     try:
-        # Call LLM for extraction via the full pipeline
-        payload = extract_knowledge(
+        # Call LLM for extraction via the precision multi-stage pipeline
+        payload = extract_knowledge_multistage(
             text=req.text,
             document_name=req.document_name,
             document_id=req.metadata.get("document_id", "user_input_doc")
@@ -139,7 +139,17 @@ from extraction import get_dynamic_prompt
 
 @app.get("/api/prompt")
 async def get_current_prompt():
-    """Returns the system prompt currently in use."""
+    """Returns the multi-stage system prompts currently in use."""
+    ontology = store.db.get_ontology()
+    multi_stage = ontology.get("multi_stage_prompts", {})
+    
+    if multi_stage:
+        # Format for display in UI
+        formatted = "### MULTI-STAGE PRECISION PIPELINE\n\n"
+        for stage, prompt in multi_stage.items():
+            formatted += f"--- {stage.upper()} ---\n{prompt}\n\n"
+        return {"prompt": formatted}
+        
     return {"prompt": get_dynamic_prompt()}
 
 

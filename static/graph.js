@@ -696,9 +696,9 @@ class GraphVisualization {
         // Show connections count
         let connections = 0;
         this.links.forEach(l => {
-            const sid = typeof l.source === "object" ? l.source.id : l.source;
-            const tid = typeof l.target === "object" ? l.target.id : l.target;
-            if (sid === d.id || tid === d.id) connections++;
+            const sid = String(typeof l.source === "object" ? l.source.id : l.source);
+            const tid = String(typeof l.target === "object" ? l.target.id : l.target);
+            if (sid === String(d.id) || tid === String(d.id)) connections++;
         });
         html += `<div class="tt-connections">${connections} connection${connections !== 1 ? "s" : ""}</div>`;
 
@@ -792,14 +792,14 @@ class GraphVisualization {
             // Relations
             const rels = [];
             this.links.forEach(l => {
-                const sid = typeof l.source === "object" ? l.source.id : l.source;
-                const tid = typeof l.target === "object" ? l.target.id : l.target;
-                if (sid === d.id) {
-                    const target = this.nodes.find(n => n.id === tid);
+                const sid = String(typeof l.source === "object" ? l.source.id : l.source);
+                const tid = String(typeof l.target === "object" ? l.target.id : l.target);
+                if (sid === String(d.id)) {
+                    const target = this.nodes.find(n => String(n.id) === tid);
                     rels.push(`→ <strong>${l.relation.replace(/_/g, " ")}</strong> → ${target ? target.label : tid}`);
                 }
-                if (tid === d.id) {
-                    const source = this.nodes.find(n => n.id === sid);
+                if (tid === String(d.id)) {
+                    const source = this.nodes.find(n => String(n.id) === sid);
                     rels.push(`${source ? source.label : sid} → <strong>${l.relation.replace(/_/g, " ")}</strong> →`);
                 }
             });

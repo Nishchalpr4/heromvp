@@ -45,6 +45,32 @@ _TYPE_PREFIX: dict[str, str] = {
     "ProductionInsight":    "pi"
 }
 
+# Mapping of common LLM-generated type variations to canonical ontology types
+_TYPE_NORMALIZATION: dict[str, str] = {
+    "company": "LegalEntity",
+    "corporation": "LegalEntity",
+    "main company": "LegalEntity",
+    "parent company": "LegalEntity",
+    "product": "ProductLine",
+    "service": "ProductLine", # Services are often modeled as ProductLine in this schema
+    "offering": "ProductLine",
+    "product domain": "ProductDomain",
+    "business unit": "BusinessUnit",
+    "segment": "BusinessUnit",
+    "portfolio": "ProductPortfolio",
+    "group": "ProductPortfolio",
+    "person": "Person",
+    "executive": "Person",
+    "geography": "Geography",
+    "location": "Geography",
+    "country": "Geography"
+}
+
+def normalize_entity_type(etype: str) -> str:
+    """Normalizes informal type names to canonical ontology keys."""
+    raw = etype.strip().lower()
+    return _TYPE_NORMALIZATION.get(raw, etype) # Return original if no mapping found
+
 
 _DEDUPE_MAP: dict[str, str] = {
     "america": "united states",
@@ -145,6 +171,9 @@ class GraphStore:
             subject_id = make_entity_id("LegalEntity", subject_name)
 
         for entity in payload.entities:
+            # Normalize type before resolution and ingestion
+            entity.entity_type = normalize_entity_type(entity.entity_type)
+            
             can_id = self.resolve_entity(entity, local_alias_index)
             id_map[entity.temp_id] = can_id
 
@@ -204,8 +233,9 @@ class GraphStore:
         # These relations define the core tree hierarchy where each node should have only ONE parent.
         taxonomic_rels = [
             "HAS_MANAGEMENT", "HAS_STRATEGY", "HAS_SUPPLY_CHAIN", "HAS_NETWORK", 
-            "HAS_PRODUCTS", "HAS_FINANCIALS", "HAS_MARKET_INSIGHT", "INCLUDES",
-            "HAS_PRODUCT_PORTFOLIO", "HAS_PRODUCT_DOMAIN", "HAS_PRODUCT_FAMILY", "HAS_PRODUCT_LINE", 
+            "HAS_PRODUCTS", "HAS_PRODUCT", "HAS_FINANCIALS", "HAS_MARKET_INSIGHT", "INCLUDES",
+            "HAS_PRODUCT_PORTFOLIO", "HAS_SERVICE_PORTFOLIO", "HAS_PRODUCT_DOMAIN", "HAS_PRODUCT_FAMILY", "HAS_PRODUCT_LINE", 
+            "HAS_BUSINESS_UNIT", "OFFERS",
             "HAS_ROLE", "HELD_BY", "COMPETES_WITH", "HAS_INITIATIVE", "LEADS", "REPORTED_BY"
         ]
         
@@ -220,13 +250,12 @@ class GraphStore:
                 tgt_id = id_map.get(rel.target_temp_id)
                 if not src_id or not tgt_id: continue
                 
-                # REJECT SELF-LOOPS (e.g. Digital Services -> Digital Services)
+                # REJECT SELF-LOOPS
                 if src_id == tgt_id:
                     print(f"[HIERARCHY] Rejecting self-loop for {src_id}")
                     continue
                 
-                # REJECT REDUNDANT PARENT (Only if it's a DIFFERENT parent)
-                # If src_id and tgt_id are the same as existing, let it through for a harmless UPSERT
+                # REJECT REDUNDANT PARENT
                 existing_parent = self.db.get_node_parent(tgt_id, taxonomic_rels)
                 if (tgt_id in node_has_parent or existing_parent) and (existing_parent != src_id):
                     print(f"[HIERARCHY] Rejecting DIFFERENT taxonomic link to {tgt_id} (Existing parent: {existing_parent}, New: {src_id})")
@@ -244,7 +273,6 @@ class GraphStore:
                 if not src_id or not tgt_id: continue
 
                 # User Rule: "sub node only connect to main node above it ntg else"
-                # If the source (e.g. iPhone) already has a taxonomic parent (Family), reject outgoing Market links
                 if rel_type_norm == "APPLIES_TO_END_MARKET" and (src_id in node_has_parent or self.db.node_has_parent(src_id, taxonomic_rels)):
                     print(f"[HIERARCHY] Rejecting redundant Market link from {src_id} -> {tgt_id}")
                     continue
@@ -308,10 +336,152 @@ class GraphStore:
                     assertion_id=assertion_id
                 )
 
+        # Get taxonomic rules from ontology to avoid hardcoding
+        struct_meta = self.ontology.get("structural_metadata", {})
+        taxonomic_rels = struct_meta.get("taxonomic_rels", taxonomic_rels)
+
+        self._enforce_structural_hierarchy(payload, id_map, taxonomic_rels, subject_id, source_authority, metadata)
+        self._global_reanchor(taxonomic_rels, subject_id)
         self._process_discoveries(payload.discoveries)
         self._check_and_fix_roots()
         self._refresh_alias_index()
         return {"entities_processed": len(payload.entities), "relations_processed": len(payload.relations)}
+
+    def _enforce_structural_hierarchy(self, payload: ExtractionPayload, id_map: dict, taxonomic_rels: List[str], subject_id: str, source_authority: int, metadata: dict = {}):
+        """
+        DYNAMIC HIERARCHY GUARD: 
+        1. Anchors orphans to the root using bridge rules.
+        2. Active Decluttering: Re-routes direct root-to-node links through bridges.
+        3. Regional Nesting: Prefers Region -> Country links over Root -> Country.
+        """
+        if not subject_id:
+            for ent in payload.entities:
+                if ent.entity_type == "LegalEntity":
+                    subject_id = id_map.get(ent.temp_id)
+                    break
+        
+        if not subject_id: return 
+
+        struct_meta = self.ontology.get("structural_metadata", {})
+        bridge_rules = struct_meta.get("bridge_rules", {})
+        comp_name = metadata.get("company_name", "Corporate").strip()
+
+        # Step 1: Detect all current parent-child mappings in this payload
+        parent_map = {} # target -> source
+        for rel in payload.relations:
+            src = id_map.get(rel.source_temp_id) or rel.source_id
+            tgt = id_map.get(rel.target_temp_id) or rel.target_id
+            if src and tgt and rel.relation_type.upper() in [r.upper() for r in taxonomic_rels]:
+                parent_map[tgt] = src
+
+        # Step 2: Enforce Rules
+        for entity in payload.entities:
+            can_id = id_map.get(entity.temp_id)
+            if not can_id or can_id == subject_id: continue
+            
+            etype = entity.entity_type
+            has_parent = self.db.node_has_parent(can_id, taxonomic_rels)
+            current_parent = parent_map.get(can_id)
+
+            # ORPHAN HEALING
+            if not has_parent and not current_parent:
+                self._apply_bridge_rule(can_id, etype, subject_id, bridge_rules, comp_name)
+            
+            # ACTIVE DECLUTTERING: If linked directly to root but a bridge rule exists, move it.
+            elif current_parent == subject_id and etype in bridge_rules:
+                # Exception: Geography already has a parent region in this payload? 
+                # (e.g., LLM linked Nike -> Vietnam AND SE Asia -> Vietnam)
+                # We skip re-bridging Geography if it already has a non-root taxonomic parent.
+                is_nested = any(r.target_id == can_id and r.source_id != subject_id and r.relation_type.upper() in [tr.upper() for tr in taxonomic_rels] for r in payload.relations)
+                
+                if not is_nested:
+                    print(f"[DECLUTTER] Re-routing root link {subject_id} -> {can_id} through {etype} bridge.")
+                    self._apply_bridge_rule(can_id, etype, subject_id, bridge_rules, comp_name)
+
+    def _apply_bridge_rule(self, can_id: str, etype: str, subject_id: str, bridge_rules: dict, comp_name: str):
+        """Applies a bridge rule to a specific node, anchoring it correctly."""
+        rule = bridge_rules.get(etype)
+        if rule:
+            # DYNAMIC BRIDGE CREATION
+            bridge_type = rule["type"]
+            bridge_name = f"{comp_name} {rule['suffix']}"
+            bridge_id = make_entity_id(bridge_type, bridge_name)
+            
+            self.db.upsert_entity(
+                entity_id=bridge_id,
+                name=bridge_name,
+                entity_type=bridge_type,
+                color=self.ontology.get("entity_colors", {}).get(bridge_type, "#94a3b8"),
+                description=f"Automated group for {comp_name}",
+                attributes={"is_bridge": True}
+            )
+            
+            # Subject -> Bridge
+            b_rel_type = rule["bridge_rel"]
+            b_rel_id = make_relation_id(subject_id, b_rel_type, bridge_id)
+            self.db.add_relation(b_rel_id, subject_id, bridge_id, b_rel_type)
+            
+            # Bridge -> Target
+            parent_id = bridge_id
+            rel_type = rule["rel"]
+            
+            # Extra Safety: Geography -> LOCATED_IN -> Manufacturing Hubs? No, Bridge -> LOCATED_IN -> Geography.
+            # The rel in rule is "from bridge to target".
+        else:
+            # Fallback context-free link
+            parent_id = subject_id
+            rel_type = "INCLUDES"
+        
+        # Apply relation
+        rel_id = make_relation_id(parent_id, rel_type, can_id)
+        self.db.add_relation(rel_id, parent_id, can_id, rel_type)
+        return parent_id, rel_type
+
+    def _global_reanchor(self, taxonomic_rels: List[str], subject_id: str):
+        """
+        CRITICAL REPAIR: Scan the entire DB for nodes that have ZERO incoming taxonomic links and anchor them 
+        to the root. This handles historical orphans.
+        """
+        if not subject_id: return
+        
+        conn = self.db._get_connection()
+        try:
+            cursor = self.db._get_cursor(conn)
+            # Find all entity IDs that have NO incoming taxonomic relations
+            cursor.execute(f"""
+                SELECT id, name, type 
+                FROM entity_master 
+                WHERE id != '{subject_id}'
+                AND id NOT IN (
+                    SELECT target_id FROM relation_master 
+                    WHERE UPPER(relation) = ANY(%s)
+                )
+            """, ([r.upper() for r in taxonomic_rels],))
+            
+            orphans = cursor.fetchall()
+            # Load bridge rules from ontology for dynamic anchoring
+            struct_meta = self.ontology.get("structural_metadata", {})
+            bridge_rules = struct_meta.get("bridge_rules", {})
+            
+            for row in orphans:
+                oid = row['id']
+                oname = row['name']
+                otype = row['type']
+                
+                # Dynamic anchor via bridge rules
+                rule = bridge_rules.get(otype)
+                if rule:
+                    parent_id, rel_type = self._apply_bridge_rule(oid, otype, subject_id, bridge_rules, "Corporate")
+                else:
+                    rel_type = "INCLUDES"
+                    parent_id = subject_id
+                    rid = make_relation_id(parent_id, rel_type, oid)
+                    self.db.add_relation(rid, parent_id, oid, rel_type)
+                
+                print(f"[RE-ANCHOR] Fixed historical orphan node: {oname} ({oid}) via {rel_type}")
+                
+        finally:
+            self.db._release_connection(conn)
 
     def _check_and_fix_roots(self):
         """

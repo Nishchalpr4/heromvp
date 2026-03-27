@@ -510,5 +510,6 @@ class DatabaseManager:
         self.update_ontology("entity_colors", data.get("entity_colors", {}), merge=merge_with_existing)
         self.update_ontology("extraction_rules", data.get("extraction_rules", []), merge=False)
         self.update_ontology("extraction_examples", data.get("extraction_examples", []), merge=False)
+        self.update_ontology("multi_stage_prompts", data.get("multi_stage_prompts", {}), merge=False)
         
         logger.info(f"Neon Postgres ontology {'merged' if merge_with_existing else 'seeded'} from base_ontology.json.")
